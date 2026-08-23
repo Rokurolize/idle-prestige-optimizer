@@ -6,7 +6,10 @@ Physics-based idle game's Prestige route optimizer built from observed play data
 
 - Rapidly update Level, cash, DPS, and each upgrade's current value / next cost / increment.
 - Recommend the highest estimated marginal benefit per dollar from currently affordable upgrades.
-- One-click purchase mirroring updates cash, projected DPS, current value, and next cost.
+- One-click purchase mirroring deducts the purchase from tracked cash and updates projected DPS, current value, next increment, and next cost.
+- Optional live-cash tracking advances the balance from an entered $/s estimate so the user does not need to retype a constantly changing balance.
+- Power uses the observed growing increment sequence (+2.2 initially, then +0.4 to the increment per purchase).
+- Upgrade actions use a responsive card layout, keeping the purchase button visible without horizontal scrolling.
 - Parse the same Japanese state templates used during manual testing.
 - Built-in level timer and run history.
 - Persist all state locally in the browser.
