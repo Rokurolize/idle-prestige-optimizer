@@ -15,8 +15,11 @@ Physics-based idle game's Prestige route optimizer built from observed play data
 - Level Up mirrors its immediate cash reward. Observed Lv3–9 rewards are stored directly; Lv10+ follows the observed `346.35 × 1.36^(level-10)` progression with cent truncation.
 - Level Up also starts the next level's wall-clock timer automatically. Exact EXP-full records and missed-record press-to-press fallbacks are kept distinct, while persistent level-start anchors allow elapsed time to be recovered from any recorded level.
 - Optional live-cash tracking advances the balance from an entered $/s estimate so the user does not need to retype a constantly changing balance.
+- Cash accepts the game's compact notation directly (`47.65M`, `850K`, `1.2B`) so no manual unit conversion is needed.
 - Power uses the observed growing increment sequence (+2.2 initially, then +0.4 to the increment per purchase).
+- Reducer DPS scaling uses the refined observed exponent 1.27; older saved states using the former 1.25 approximation migrate automatically.
 - Upgrade actions use a responsive card layout, keeping the purchase button visible without horizontal scrolling.
+- Full-budget proposals show each upgrade's current value → proposed value, with total spend kept secondary, and can be mirrored with one click.
 - Parse the same Japanese state templates used during manual testing.
 - Built-in level timer, persistent level-start anchors, and run history.
 - Persist all state locally in the browser.

@@ -68,7 +68,8 @@ try {
     const income=document.getElementById('income'); income.value='100'; income.dispatchEvent(new Event('change',{bubbles:true}));
     const input=document.querySelector('.cost[data-key="speed"]'); input.focus(); input.value=String(Number(input.value)+1);
     const b=document.getElementById('applyBundle'); b.scrollIntoView({block:'center'}); const r=b.getBoundingClientRect();
-    return {x:r.left+r.width/2,y:r.top+r.height/2,beforeCash:Number(cash.value),beforeSpeed:Number(document.querySelector('.value[data-key="speed"]').value)};
+    const pm=v=>{const m=String(v).match(/^([\\d.]+)([KMBT])?$/i);return m?Number(m[1])*({K:1e3,M:1e6,B:1e9,T:1e12}[String(m[2]||'').toUpperCase()]||1):NaN};
+    return {x:r.left+r.width/2,y:r.top+r.height/2,beforeCash:pm(cash.value),beforeSpeed:Number(document.querySelector('.value[data-key="speed"]').value)};
   })()`);
   await call('Input.dispatchMouseEvent', { type: 'mousePressed', x: setup.x, y: setup.y, button: 'left', clickCount: 1 });
   // Cross the 1s live-cash refresh while the pointer is held down. The old UI
@@ -76,7 +77,7 @@ try {
   await sleep(1200);
   await call('Input.dispatchMouseEvent', { type: 'mouseReleased', x: setup.x, y: setup.y, button: 'left', clickCount: 1 });
   await sleep(100);
-  const after = await evaluate(`({cash:Number(document.getElementById('cash').value),speed:Number(document.querySelector('.value[data-key="speed"]').value),toast:document.getElementById('toast').textContent})`);
+  const after = await evaluate(`(()=>{const pm=v=>{const m=String(v).match(/^([\\d.]+)([KMBT])?$/i);return m?Number(m[1])*({K:1e3,M:1e6,B:1e9,T:1e12}[String(m[2]||'').toUpperCase()]||1):NaN};return {cash:pm(document.getElementById('cash').value),speed:Number(document.querySelector('.value[data-key="speed"]').value),toast:document.getElementById('toast').textContent}})()`);
   const pass = after.cash < setup.beforeCash || after.speed > setup.beforeSpeed;
   console.log(JSON.stringify({ ...setup, ...after, pass }));
   if (!pass) process.exitCode = 1;
