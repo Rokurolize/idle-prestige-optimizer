@@ -17,7 +17,8 @@ Physics-based idle game's Prestige route optimizer built from observed play data
 - Optional live-cash tracking advances the balance from an entered $/s estimate so the user does not need to retype a constantly changing balance.
 - Cash accepts the game's compact notation directly (`47.65M`, `850K`, `1.2B`) so no manual unit conversion is needed.
 - Power uses the observed growing increment sequence (+2.2 initially, then +0.4 to the increment per purchase).
-- Reducer DPS scaling uses the refined observed exponent 1.27; older saved states using the former 1.25 approximation migrate automatically.
+- Reducer DPS scaling uses the refined observed exponent 1.2711 so the known 1.5 and 1.6 configurations round to the same DPS displays as the game; older saved states using the former approximations migrate automatically.
+- The primary panel mirrors the game's visual hierarchy: compact cash/DPS/level strip followed by the exact 4×2 upgrade order `Speed / Power / Reducer / Rare` then `Gravity / Spike Count / Spike Size / Feed`, with current values dominant and optimizer-only rank/effect information secondary.
 - Upgrade actions use a responsive card layout, keeping the purchase button visible without horizontal scrolling.
 - Full-budget proposals show each upgrade's current value → proposed value, with total spend kept secondary, and can be mirrored with one click.
 - Parse the same Japanese state templates used during manual testing.

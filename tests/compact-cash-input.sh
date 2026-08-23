@@ -8,7 +8,7 @@ python3 - "$tmp/index.html" <<'PY'
 import sys
 p=sys.argv[1]
 s=open(p, encoding='utf-8').read()
-probe=r'''<script>setTimeout(()=>{const level=document.getElementById('level');level.value='22';level.dispatchEvent(new Event('change',{bubbles:true}));setTimeout(()=>{const cash=document.getElementById('cash');const gravityBefore=document.querySelector('.buy[data-key="gravity"]').disabled;cash.value='47.65M';cash.dispatchEvent(new Event('paste',{bubbles:true}));setTimeout(()=>{const displayed=cash.value;const gravityAfter=document.querySelector('.buy[data-key="gravity"]').disabled;const out=document.createElement('pre');out.id='compact-cash-result';out.textContent=JSON.stringify({displayed,gravityBefore,gravityAfter,pass:displayed==='47650000'&&gravityBefore===true&&gravityAfter===false});document.body.appendChild(out)},80)},60)},120)</script>'''
+probe=r'''<script>setTimeout(()=>{const level=document.getElementById('level');level.value='22';level.dispatchEvent(new Event('change',{bubbles:true}));setTimeout(()=>{const cash=document.getElementById('cash');const gravityBefore=document.querySelector('.buy[data-key="gravity"]').disabled;cash.value='47.65M';cash.dispatchEvent(new Event('paste',{bubbles:true}));setTimeout(()=>{const displayed=cash.value;const gravityAfter=document.querySelector('.buy[data-key="gravity"]').disabled;const out=document.createElement('pre');out.id='compact-cash-result';out.textContent=JSON.stringify({displayed,gravityBefore,gravityAfter,pass:displayed==='47.65M'&&gravityBefore===true&&gravityAfter===false});document.body.appendChild(out)},80)},60)},120)</script>'''
 s=s.replace('</body>', probe+'</body>')
 open(p,'w', encoding='utf-8').write(s)
 PY
