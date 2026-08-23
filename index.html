@@ -125,8 +125,16 @@
   function currentCash(){const base=Math.max(0,num(state.cash));if(!state.cashAuto||state.income<=0)return base;const since=Math.max(0,Date.now()-num(state.cashUpdatedAt,Date.now()))/1000;return base+state.income*since}
   function settleCash(){state.cash=currentCash();state.cashUpdatedAt=Date.now();return state.cash}
   function parseMoney(v){if(typeof v==='number')return v;const s=String(v||'').trim().replace(/[$,\s]/g,'').toUpperCase();const m=s.match(/^(-?\d+(?:\.\d+)?)([KMBT])?$/);if(!m)return NaN;const mult={K:1e3,M:1e6,B:1e9,T:1e12}[m[2]]||1;return Number(m[1])*mult}
-  function money(v){v=num(v);const a=Math.abs(v);if(a>=1e12)return '$'+trim(v/1e12)+'T';if(a>=1e9)return '$'+trim(v/1e9)+'B';if(a>=1e6)return '$'+trim(v/1e6)+'M';if(a>=1e3)return '$'+trim(v/1e3)+'K';return '$'+trim(v)}
+  function money(v){v=num(v);const a=Math.abs(v);if(a>=1e12)return '$'+trim(v/1e12)+'T';if(a>=1e9)return '$'+trim(v/1e9)+'B';if(a>=1e6)return '$'+trim(v/1e6)+'M';if(a>=1e3)return '$'+trim(v/1e3)+'K';return '$'+cashValue(v)}
   function trim(v){return Number(v.toPrecision(4)).toString()}
+  function cashValue(v){return Number(num(v).toFixed(2)).toString()}
+  function floorCents(v){return Math.floor((v+1e-9)*100)/100}
+  function levelUpReward(level){
+    const observed={3:10.59,4:16.10,5:24.81,6:38.94,7:62.58,8:104.03,9:181.90};
+    if(Object.prototype.hasOwnProperty.call(observed,level))return observed[level];
+    if(level>=10&&level<50)return floorCents(346.35*Math.pow(1.36,level-10));
+    return null;
+  }
   function pct(v){return ((v-1)*100).toFixed(v<1.1?2:1)+'%'}
   function unlocked(u){return state.level>=u.unlock}
   function capped(u){return u.cap!=null&&u.value>=u.cap-1e-9}
@@ -137,7 +145,8 @@
   function candidateEntries(){const cash=currentCash();return Object.entries(state.upgrades).filter(([,u])=>unlocked(u)&&!capped(u)&&validCost(u)).map(([key,u])=>({key,u,factor:effect(u),roi:roi(u),affordable:u.cost<=cash})).sort((a,b)=>b.roi-a.roi)}
 
   function render(){
-    $('level').value=state.level;if(document.activeElement!==$('cash'))$('cash').value=trim(currentCash());$('cashAuto').checked=!!state.cashAuto;$('cashAutoState').textContent=state.cashAuto&&state.income>0?'ON':'OFF';$('dps').value=trim(state.dps);$('income').value=state.income?trim(state.income):'';$('remaining').value=Math.max(0,50-state.level);
+    $('level').value=state.level;if(document.activeElement!==$('cash'))$('cash').value=cashValue(currentCash());$('cashAuto').checked=!!state.cashAuto;$('cashAutoState').textContent=state.cashAuto&&state.income>0?'ON':'OFF';$('dps').value=trim(state.dps);$('income').value=state.income?trim(state.income):'';$('remaining').value=Math.max(0,50-state.level);
+    const reward=levelUpReward(state.level);$('levelUp').textContent=state.level>=50?'Lv50':reward==null?'Lv +1（即時収入 未観測）':`Lv +1（+${money(reward)}）`;$('levelUp').disabled=state.level>=50;
     for(const id of ['prestigeCash','prestigeDmg','refining','crush','expEff','ingots'])$(id).value=state[id];
     for(const id of ['reducerExponent','gravityEffect','feedExponent','spikeSizeEffect'])$(id).value=state.settings[id];
     $('cashPerm').textContent='×'+trim(state.prestigeCash*state.refining);$('dmgPerm').textContent='×'+trim(state.prestigeDmg*state.crush);$('expPerm').textContent='×'+trim(state.expEff);
@@ -187,7 +196,7 @@
     $('cashAuto').addEventListener('change',()=>{settleCash();snapshot();state.cashAuto=$('cashAuto').checked;state.cashUpdatedAt=Date.now();render();flash(state.cashAuto?'所持金の自動追従をONにしました。':'所持金の自動追従をOFFにしました。')});
     $('dps').addEventListener('change',()=>{snapshot();state.dps=Math.max(0,num($('dps').value,state.dps));render()});
     $('income').addEventListener('change',()=>{settleCash();const n=parseMoney($('income').value);snapshot();state.income=Number.isFinite(n)?Math.max(0,n):0;state.cashUpdatedAt=Date.now();render();flash(state.income>0?`${money(state.income)}/s で所持金を追従します。`:'$/s を0にしました。')});
-    $('levelUp').addEventListener('click',()=>{snapshot();state.level=Math.min(50,state.level+1);render();flash(`Lv${state.level} に更新。`)});
+    $('levelUp').addEventListener('click',()=>{if(state.level>=50)return;settleCash();snapshot();const from=state.level,reward=levelUpReward(from);if(reward!=null)state.cash+=reward;state.cashUpdatedAt=Date.now();state.level=Math.min(50,state.level+1);render();flash(reward==null?`Lv${state.level} に更新。Lv${from}→${state.level}の即時収入は未観測です。`:`Lv${state.level} に更新。即時収入 ${money(reward)} を加算。`)});
     $('cashFocus').addEventListener('click',()=>{$('cash').focus();$('cash').select()});
     $('undo').addEventListener('click',()=>{if(!undoStack.length)return;state=undoStack.pop();render();flash('1手戻しました。')});
     $('reset').addEventListener('click',()=>{if(!confirm('保存状態を初期値へ戻しますか？'))return;snapshot();state=clone(defaults);state.cashUpdatedAt=Date.now();render()});
@@ -208,7 +217,7 @@
   function recordTimer(){if(timerId){timerElapsed+=performance.now()-timerStart;clearInterval(timerId);timerId=0}if(timerElapsed<=0)return;snapshot();state.history.unshift({from:state.level,to:Math.min(50,state.level+1),ms:Math.round(timerElapsed),cash:currentCash(),dps:state.dps,at:Date.now()});state.history=state.history.slice(0,30);timerElapsed=0;updateTimer();$('timerToggle').textContent='開始';render()}
   function renderHistory(){const root=$('history');root.textContent='';if(!state.history.length){root.innerHTML='<div class="smalltext muted">まだ記録なし。</div>';return}for(const h of state.history){const d=document.createElement('div');d.className='historyRow';d.innerHTML=`<span>Lv${h.from}→${h.to}</span><b>${timerText(h.ms)}</b><span>${money(h.cash)}</span>`;root.appendChild(d)}}
   function bindTimer(){$('timerToggle').addEventListener('click',toggleTimer);$('timerRecord').addEventListener('click',recordTimer);$('timerClear').addEventListener('click',()=>{snapshot();state.history=[];render()});document.addEventListener('keydown',e=>{const t=e.target.tagName;if((t==='INPUT'||t==='TEXTAREA'||t==='SELECT')||e.ctrlKey||e.metaKey||e.altKey)return;if(e.key.toLowerCase()==='t'){e.preventDefault();toggleTimer()}})}
-  function refreshLiveCash(){if(!state.cashAuto||state.income<=0)return;if(document.activeElement!==$('cash'))$('cash').value=trim(currentCash());$('cashAutoState').textContent='ON';const cash=currentCash();document.querySelectorAll('.buy').forEach(btn=>{const u=state.upgrades[btn.dataset.key];btn.disabled=!u||!unlocked(u)||capped(u)||!validCost(u)||u.cost>cash});renderRecommendation()}
+  function refreshLiveCash(){if(!state.cashAuto||state.income<=0)return;if(document.activeElement!==$('cash'))$('cash').value=cashValue(currentCash());$('cashAutoState').textContent='ON';const cash=currentCash();document.querySelectorAll('.buy').forEach(btn=>{const u=state.upgrades[btn.dataset.key];btn.disabled=!u||!unlocked(u)||capped(u)||!validCost(u)||u.cost>cash});renderRecommendation()}
   bindMain();bindTimer();render();updateTimer();setInterval(refreshLiveCash,1000);window.addEventListener('pagehide',()=>{settleCash();save()});
 })();
 </script>
