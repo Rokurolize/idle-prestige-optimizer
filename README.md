@@ -6,6 +6,7 @@ Physics-based idle game's Prestige route optimizer built from observed play data
 
 - Rapidly update Level, cash, DPS, and each upgrade's current value / next cost / increment.
 - Recommend the highest estimated marginal benefit per dollar from currently affordable upgrades.
+- The current-best recommendation includes its own one-click purchase mirror, so the user can buy it in-game and sync the optimizer without locating the matching upgrade tile.
 - One-click purchase mirroring deducts the purchase from tracked cash and updates projected DPS, current value, next increment, and next cost.
 - Reducer's first observed/derived price is $75K: with ×1.58 price growth this reproduces the observed 10-buy total of about $12.41M.
 - The DPS calibration input accepts the game's suffix notation directly (`2.33K`, `1.2M`, etc.) and persists the resulting calibration for subsequent projections.
