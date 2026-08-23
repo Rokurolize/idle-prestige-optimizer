@@ -10,10 +10,10 @@
     *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text)} button,input,select,textarea{font:inherit;color:inherit} button{cursor:pointer}
     .app{max-width:1180px;margin:0 auto;padding:16px}.top{display:flex;gap:12px;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;margin-bottom:12px}.title h1{font-size:20px;margin:0 0 4px}.title p{margin:0;color:var(--muted);font-size:12px}.status{display:flex;gap:8px;flex-wrap:wrap}.pill{background:var(--panel2);border:1px solid var(--line);padding:6px 10px;border-radius:999px;font-size:12px}.pill b{color:var(--accent)}
     .grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(320px,.65fr);gap:12px}@media(max-width:900px){.grid{grid-template-columns:1fr}}.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}.card h2{font-size:14px;margin:0 0 10px}.card h3{font-size:12px;color:var(--muted);margin:14px 0 6px}
-    .quick{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}@media(max-width:700px){.quick{grid-template-columns:repeat(2,minmax(0,1fr))}}label{display:block;font-size:11px;color:var(--muted)} input,select,textarea{width:100%;background:#0f141b;border:1px solid var(--line);border-radius:8px;padding:8px;outline:none}input:focus,select:focus,textarea:focus,button:focus-visible{border-color:var(--focus);box-shadow:0 0 0 2px #8bc5ff33}input{font-variant-numeric:tabular-nums}.moneyWrap{position:relative}.moneyWrap input{padding-left:20px}.moneyWrap:before{content:"$";position:absolute;left:8px;bottom:9px;color:var(--muted);font-size:12px}
+    .quick{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}@media(max-width:700px){.quick{grid-template-columns:repeat(2,minmax(0,1fr))}}label{display:block;font-size:11px;color:var(--muted)} input,select,textarea{width:100%;background:#0f141b;border:1px solid var(--line);border-radius:8px;padding:8px;outline:none}input:focus,select:focus,textarea:focus,button:focus-visible{border-color:var(--focus);box-shadow:0 0 0 2px #8bc5ff33}input{font-variant-numeric:tabular-nums}.moneyWrap{position:relative}.moneyWrap input{padding-left:20px}.moneyWrap:before{content:"$";position:absolute;left:8px;bottom:9px;color:var(--muted);font-size:12px}.cashAuto{display:flex;align-items:center;gap:7px;margin-top:7px;color:var(--muted);font-size:11px}.cashAuto input{width:auto}.cashAuto strong{color:var(--good);font-weight:700}
     .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.btn{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:8px 11px}.btn.primary{background:var(--accent);border-color:var(--accent);color:#251600;font-weight:700}.btn.good{background:#173527;border-color:#2f6f4d;color:#bdf5d2}.btn.danger{background:#351c1c;border-color:#713636;color:#ffd1d1}.btn.small{padding:5px 8px;font-size:12px}.btn:disabled{opacity:.45;cursor:not-allowed}
     .recommend{border:1px solid #6d5326;background:#241d12;border-radius:10px;padding:12px;margin-bottom:10px}.recommend .headline{font-size:18px;font-weight:800;color:#ffd48b}.recommend .reason{font-size:12px;color:#d7c8ad;margin-top:6px;line-height:1.5}.metricrow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}.metric{background:#11171f;border:1px solid var(--line);border-radius:9px;padding:8px}.metric span{display:block;color:var(--muted);font-size:10px}.metric b{font-size:14px;font-variant-numeric:tabular-nums}
-    .tableWrap{overflow:auto;border:1px solid var(--line);border-radius:10px}table{width:100%;border-collapse:collapse;min-width:860px;font-size:12px}th,td{padding:7px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}th{position:sticky;top:0;background:#111720;color:var(--muted);font-size:10px;z-index:1}th:first-child,td:first-child{text-align:left}.upname{font-weight:700}.sub{font-size:10px;color:var(--muted);margin-top:2px}.locked{opacity:.45}.roi.good{color:var(--good)}.roi.mid{color:var(--warn)}.rowbtn{min-width:60px}.compactInput{width:82px;padding:6px}.costInput{width:105px;padding:6px}.stepInput{width:70px;padding:6px}
+    .upgradeList{display:flex;flex-direction:column;gap:8px}.upgradeRow{display:grid;grid-template-columns:minmax(105px,1.15fr) minmax(74px,.75fr) minmax(94px,.9fr) minmax(75px,.7fr) minmax(112px,1fr);grid-template-areas:"name value cost effect action" "name meta meta roi action";gap:6px 8px;align-items:center;background:#11171f;border:1px solid var(--line);border-radius:10px;padding:8px}.upgradeRow.locked{opacity:.5}.upgradeName{grid-area:name;min-width:0}.upgradeValue{grid-area:value}.upgradeCost{grid-area:cost}.upgradeEffect{grid-area:effect;text-align:right;font-size:12px}.upgradeMeta{grid-area:meta;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.upgradeRoi{grid-area:roi;text-align:right;font-size:11px}.upgradeAction{grid-area:action}.upgradeAction .btn{width:100%;min-height:44px;font-weight:700}.upname{font-weight:700}.sub{font-size:10px;color:var(--muted);margin-top:2px}.roi.good{color:var(--good)}.miniField{display:flex;align-items:center;gap:4px;color:var(--muted);font-size:10px}.miniField input{width:70px;padding:5px}.compactInput,.costInput{width:100%;padding:7px}.fieldCap{display:block;color:var(--muted);font-size:9px;margin-bottom:2px}@media(max-width:720px){.upgradeRow{grid-template-columns:1fr 1fr;grid-template-areas:"name action" "value cost" "effect roi" "meta meta"}.upgradeEffect,.upgradeRoi{text-align:left}.upgradeAction .btn{min-height:40px}.miniField{flex:1}.miniField input{width:100%}}
     .bundle{display:flex;flex-direction:column;gap:6px}.bundleItem{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;background:#11171f;border:1px solid var(--line);border-radius:8px;padding:8px}.bundleItem .count{color:var(--accent);font-weight:800}.muted{color:var(--muted)}.smalltext{font-size:11px;line-height:1.5}.note{font-size:10px;color:var(--muted);margin-top:8px;line-height:1.5}
     .timer{font-variant-numeric:tabular-nums;font-size:32px;font-weight:800;letter-spacing:.04em;text-align:center;margin:4px 0 10px}.timerBtns{display:grid;grid-template-columns:1fr 1fr;gap:8px}.history{max-height:170px;overflow:auto;margin-top:8px}.historyRow{display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding:6px 2px;font-size:11px}.parse{margin-top:10px}.parse textarea{min-height:96px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px}.toast{min-height:18px;margin-top:6px;color:var(--good);font-size:11px}
     details{border-top:1px solid var(--line);margin-top:10px;padding-top:10px}summary{cursor:pointer;color:var(--muted);font-size:11px}.settingsGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}@media(max-width:600px){.settingsGrid{grid-template-columns:1fr}}
@@ -32,9 +32,9 @@
         <h2>現在状態</h2>
         <div class="quick">
           <label>Level<input id="level" inputmode="numeric" type="number" min="1" max="50"></label>
-          <label>所持金<div class="moneyWrap"><input id="cash" inputmode="decimal" autocomplete="off"></div></label>
+          <label>所持金<div class="moneyWrap"><input id="cash" inputmode="decimal" autocomplete="off"></div><span class="cashAuto"><input id="cashAuto" type="checkbox"><span>$/s で自動追従 <strong id="cashAutoState"></strong></span></span></label>
           <label>DPS<input id="dps" inputmode="decimal" autocomplete="off"></label>
-          <label>瞬間 $/s（任意）<div class="moneyWrap"><input id="income" inputmode="decimal" autocomplete="off"></div></label>
+          <label>追従用 $/s（平均/目安）<div class="moneyWrap"><input id="income" inputmode="decimal" autocomplete="off"></div></label>
           <label>残りLv<input id="remaining" disabled></label>
         </div>
         <div class="actions">
@@ -47,13 +47,8 @@
 
       <div class="card" style="margin-top:12px">
         <h2>通常アップグレード</h2>
-        <div class="tableWrap">
-          <table>
-            <thead><tr><th>Upgrade</th><th>現在値</th><th>次コスト</th><th>増加</th><th>価格倍率</th><th>推定効果/1回</th><th>効率</th><th>反映</th></tr></thead>
-            <tbody id="upgradeRows"></tbody>
-          </table>
-        </div>
-        <div class="note">「購入反映」はゲーム側で実際に買った直後に押してください。次価格は既知の価格倍率から予測します。ゲーム表示と違ったらそのセルだけ上書きすれば以後の計算に即反映されます。</div>
+        <div class="upgradeList" id="upgradeRows"></div>
+        <div class="note">「購入反映」は常に右側（狭い画面では行の上段）に表示され、横スクロール不要です。押すと購入額を所持金から即時減算し、値・次価格・DPSを更新します。$/s 自動追従がONなら、その後の収益も時刻から自動加算します。</div>
       </div>
 
       <div class="card parse">
@@ -106,26 +101,29 @@
   const $=id=>document.getElementById(id);
   const clone=x=>JSON.parse(JSON.stringify(x));
   const defaults={
-    level:1,cash:220.27,dps:1.31,income:0,prestigeCash:1.14,prestigeDmg:1.14,refining:1.56,crush:1.56,expEff:1,ingots:0,
+    schemaVersion:2,level:1,cash:220.27,cashAuto:true,cashUpdatedAt:Date.now(),dps:1.31,income:0,prestigeCash:1.14,prestigeDmg:1.14,refining:1.56,crush:1.56,expEff:1,ingots:0,
     settings:{reducerExponent:1.25,gravityEffect:0.023,feedExponent:0.75,spikeSizeEffect:0.003},history:[],
     upgrades:{
-      speed:{name:'Speed',value:10,cost:50,step:1,growth:1.2,unlock:1,cap:null,model:'linear',confidence:'高'},
-      power:{name:'Power',value:2,cost:14,step:2.2,growth:1.73,unlock:1,cap:null,model:'linear',confidence:'高'},
-      reducer:{name:'Reducer',value:1,cost:0,step:0.05,growth:1.58,unlock:11,cap:null,model:'reducer',confidence:'高'},
-      gravity:{name:'Gravity',value:9.81,cost:3000,step:0.5,growth:2,unlock:1,cap:null,model:'gravity',confidence:'中'},
-      spikeCount:{name:'Spike Count',value:4,cost:0,step:1,growth:1.5,unlock:5,cap:12,model:'linear',confidence:'高'},
-      spikeSize:{name:'Spike Size',value:1,cost:1500,step:0.015,growth:1.25,unlock:8,cap:1.15,model:'spikeSize',confidence:'低'},
-      feed:{name:'Feed Rate',value:1,cost:0,step:0.1,growth:1.5,unlock:3,cap:4,model:'feed',confidence:'中'},
-      rare:{name:'Rare Ore Rate',value:0,cost:50000,step:0.5,growth:2,unlock:1,cap:10,model:'rare',confidence:'高'}
+      speed:{name:'Speed',value:10,cost:50,step:1,stepDelta:0,growth:1.2,unlock:1,cap:null,model:'linear',confidence:'高'},
+      power:{name:'Power',value:2,cost:14,step:2.2,stepDelta:0.4,growth:1.73,unlock:1,cap:null,model:'linear',confidence:'高'},
+      reducer:{name:'Reducer',value:1,cost:0,step:0.05,stepDelta:0,growth:1.58,unlock:11,cap:null,model:'reducer',confidence:'高'},
+      gravity:{name:'Gravity',value:9.81,cost:3000,step:0.5,stepDelta:0,growth:2,unlock:1,cap:null,model:'gravity',confidence:'中'},
+      spikeCount:{name:'Spike Count',value:4,cost:0,step:1,stepDelta:0,growth:1.5,unlock:5,cap:12,model:'linear',confidence:'高'},
+      spikeSize:{name:'Spike Size',value:1,cost:1500,step:0.015,stepDelta:0,growth:1.25,unlock:8,cap:1.15,model:'spikeSize',confidence:'低'},
+      feed:{name:'Feed Rate',value:1,cost:0,step:0.1,stepDelta:0,growth:1.5,unlock:3,cap:4,model:'feed',confidence:'中'},
+      rare:{name:'Rare Ore Rate',value:0,cost:50000,step:0.5,stepDelta:0,growth:2,unlock:1,cap:10,model:'rare',confidence:'高'}
     }
   };
   let state=load(); let undoStack=[]; let timerStart=0,timerElapsed=0,timerId=0;
 
-  function load(){try{const raw=localStorage.getItem(KEY);if(!raw)return clone(defaults);return merge(clone(defaults),JSON.parse(raw));}catch{return clone(defaults)}}
+  function load(){try{const raw=localStorage.getItem(KEY);if(!raw)return clone(defaults);const parsed=JSON.parse(raw),loaded=merge(clone(defaults),parsed);if(num(parsed.schemaVersion,1)<2)migratePowerV1(loaded);loaded.schemaVersion=2;loaded.cashUpdatedAt=Date.now();return loaded}catch{return clone(defaults)}}
+  function migratePowerV1(s){const u=s.upgrades&&s.upgrades.power;if(!u||!Number.isFinite(u.cost)||u.cost<=0)return;const baseCost=14,growth=1.73,n=Math.max(0,Math.round(Math.log(u.cost/baseCost)/Math.log(growth))),expectedCost=baseCost*Math.pow(growth,n);if(Math.abs(expectedCost-u.cost)/expectedCost>0.03)return;u.value=2+n*2.2+0.4*n*(n-1)/2;u.step=2.2+0.4*n;u.stepDelta=0.4}
   function merge(a,b){for(const k of Object.keys(b||{})){if(b[k]&&typeof b[k]==='object'&&!Array.isArray(b[k])&&a[k]&&typeof a[k]==='object'&&!Array.isArray(a[k]))merge(a[k],b[k]);else a[k]=b[k]}return a}
   function save(){localStorage.setItem(KEY,JSON.stringify(state));$('savePill').textContent='保存済み';}
   function snapshot(){undoStack.push(clone(state));if(undoStack.length>30)undoStack.shift()}
   function num(v,fallback=0){const n=Number(v);return Number.isFinite(n)?n:fallback}
+  function currentCash(){const base=Math.max(0,num(state.cash));if(!state.cashAuto||state.income<=0)return base;const since=Math.max(0,Date.now()-num(state.cashUpdatedAt,Date.now()))/1000;return base+state.income*since}
+  function settleCash(){state.cash=currentCash();state.cashUpdatedAt=Date.now();return state.cash}
   function parseMoney(v){if(typeof v==='number')return v;const s=String(v||'').trim().replace(/[$,\s]/g,'').toUpperCase();const m=s.match(/^(-?\d+(?:\.\d+)?)([KMBT])?$/);if(!m)return NaN;const mult={K:1e3,M:1e6,B:1e9,T:1e12}[m[2]]||1;return Number(m[1])*mult}
   function money(v){v=num(v);const a=Math.abs(v);if(a>=1e12)return '$'+trim(v/1e12)+'T';if(a>=1e9)return '$'+trim(v/1e9)+'B';if(a>=1e6)return '$'+trim(v/1e6)+'M';if(a>=1e3)return '$'+trim(v/1e3)+'K';return '$'+trim(v)}
   function trim(v){return Number(v.toPrecision(4)).toString()}
@@ -136,10 +134,10 @@
   function nextValue(u){return u.cap==null?u.value+u.step:Math.min(u.cap,u.value+u.step)}
   function effect(u){const n=nextValue(u),c=Math.max(u.value,1e-9);switch(u.model){case'linear':return n/c;case'reducer':return Math.pow(n/c,state.settings.reducerExponent);case'gravity':return Math.pow(1+state.settings.gravityEffect,(n-u.value)/0.5);case'rare':return (1+9*n/100)/(1+9*u.value/100);case'feed':return Math.pow(n/c,state.settings.feedExponent);case'spikeSize':return Math.pow(1+state.settings.spikeSizeEffect,(n-u.value)/Math.max(u.step,1e-9));default:return 1}}
   function roi(u){if(!validCost(u))return 0;return Math.log(Math.max(effect(u),1))/u.cost}
-  function candidateEntries(){return Object.entries(state.upgrades).filter(([,u])=>unlocked(u)&&!capped(u)&&validCost(u)).map(([key,u])=>({key,u,factor:effect(u),roi:roi(u),affordable:u.cost<=state.cash})).sort((a,b)=>b.roi-a.roi)}
+  function candidateEntries(){const cash=currentCash();return Object.entries(state.upgrades).filter(([,u])=>unlocked(u)&&!capped(u)&&validCost(u)).map(([key,u])=>({key,u,factor:effect(u),roi:roi(u),affordable:u.cost<=cash})).sort((a,b)=>b.roi-a.roi)}
 
   function render(){
-    $('level').value=state.level;$('cash').value=trim(state.cash);$('dps').value=trim(state.dps);$('income').value=state.income?trim(state.income):'';$('remaining').value=Math.max(0,50-state.level);
+    $('level').value=state.level;if(document.activeElement!==$('cash'))$('cash').value=trim(currentCash());$('cashAuto').checked=!!state.cashAuto;$('cashAutoState').textContent=state.cashAuto&&state.income>0?'ON':'OFF';$('dps').value=trim(state.dps);$('income').value=state.income?trim(state.income):'';$('remaining').value=Math.max(0,50-state.level);
     for(const id of ['prestigeCash','prestigeDmg','refining','crush','expEff','ingots'])$(id).value=state[id];
     for(const id of ['reducerExponent','gravityEffect','feedExponent','spikeSizeEffect'])$(id).value=state.settings[id];
     $('cashPerm').textContent='×'+trim(state.prestigeCash*state.refining);$('dmgPerm').textContent='×'+trim(state.prestigeDmg*state.crush);$('expPerm').textContent='×'+trim(state.expEff);
@@ -148,9 +146,10 @@
   function renderRows(){
     const body=$('upgradeRows');body.textContent='';
     for(const [key,u] of Object.entries(state.upgrades)){
-      const tr=document.createElement('tr');if(!unlocked(u)||capped(u))tr.classList.add('locked');
+      const tr=document.createElement('div');tr.className='upgradeRow';if(!unlocked(u)||capped(u))tr.classList.add('locked');
       const status=capped(u)?'MAX':unlocked(u)?(validCost(u)?u.confidence+'信頼':'価格入力待ち'):'Req Lv '+u.unlock;
-      tr.innerHTML=`<td><div class="upname">${u.name}</div><div class="sub">${status}</div></td><td><input class="compactInput value" data-key="${key}" value="${trim(u.value)}"></td><td><input class="costInput cost" data-key="${key}" value="${validCost(u)?trim(u.cost):''}" placeholder="? as $"></td><td><input class="stepInput step" data-key="${key}" value="${trim(u.step)}"></td><td><input class="stepInput growth" data-key="${key}" value="${trim(u.growth)}"></td><td>${unlocked(u)&&!capped(u)?'+'+pct(effect(u)):'—'}</td><td class="roi ${roi(u)>0?'good':''}">${unlocked(u)&&validCost(u)&&!capped(u)?formatRoi(roi(u)):'—'}</td><td><button class="btn small rowbtn buy" data-key="${key}" ${!unlocked(u)||capped(u)||!validCost(u)||u.cost>state.cash?'disabled':''}>購入反映</button></td>`;
+      const cash=currentCash();
+      tr.innerHTML=`<div class="upgradeName"><div class="upname">${u.name}</div><div class="sub">${status}</div></div><div class="upgradeValue"><span class="fieldCap">現在値</span><input class="compactInput value" data-key="${key}" value="${trim(u.value)}"></div><div class="upgradeCost"><span class="fieldCap">次コスト</span><input class="costInput cost" data-key="${key}" value="${validCost(u)?trim(u.cost):''}" placeholder="? as $"></div><div class="upgradeEffect"><span class="fieldCap">推定効果</span>${unlocked(u)&&!capped(u)?'+'+pct(effect(u)):'—'}</div><div class="upgradeMeta"><label class="miniField">増加 <input class="step" data-key="${key}" value="${trim(u.step)}"></label><label class="miniField">増加Δ <input class="stepDelta" data-key="${key}" value="${trim(u.stepDelta||0)}"></label><label class="miniField">価格× <input class="growth" data-key="${key}" value="${trim(u.growth)}"></label></div><div class="upgradeRoi roi ${roi(u)>0?'good':''}"><span class="fieldCap">効率</span>${unlocked(u)&&validCost(u)&&!capped(u)?formatRoi(roi(u)):'—'}</div><div class="upgradeAction"><button class="btn good buy" data-key="${key}" ${!unlocked(u)||capped(u)||!validCost(u)||u.cost>cash?'disabled':''}>購入反映${validCost(u)?` −${money(u.cost)}`:''}</button></div>`;
       body.appendChild(tr);
     }
     body.querySelectorAll('input').forEach(el=>el.addEventListener('change',onUpgradeEdit));body.querySelectorAll('.buy').forEach(el=>el.addEventListener('click',()=>applyPurchase(el.dataset.key)));
@@ -160,12 +159,12 @@
     const candidates=candidateEntries(),aff=candidates.filter(c=>c.affordable),box=$('recommend');
     if(state.level>=50){box.innerHTML='<div class="headline">Prestige判定へ</div><div class="reason">Lv50到達。通常現金はリセットされるため、Prestige画面の Ingots gained と現在Ingotsを確認。</div>';return}
     if(!aff.length){const next=candidates[0];box.innerHTML=`<div class="headline">購入なし → Level Up</div><div class="reason">現在資金で有効な購入候補なし。${next?`効率首位は ${next.u.name} (${money(next.u.cost)})。`:''} EXPが満タンなら待たずに次Lvへ。</div>`;renderBundle([]);return}
-    const best=aff[0],after=state.cash-best.u.cost,predDps=state.dps*best.factor;
+    const cash=currentCash(),best=aff[0],after=cash-best.u.cost,predDps=state.dps*best.factor;
     box.innerHTML=`<div class="headline">${best.u.name} を1回</div><div class="reason">費用 ${money(best.u.cost)} / 推定速度 +${pct(best.factor)} / 購入後 ${money(after)}。まず1回だけゲームで購入→「購入反映」を押すと、次価格込みで直ちに再計算します。</div><div class="metricrow"><div class="metric"><span>推定DPS</span><b>${trim(predDps)}</b></div><div class="metric"><span>効果/$</span><b>${formatRoi(best.roi)}</b></div><div class="metric"><span>残資金</span><b>${money(after)}</b></div></div>`;
     renderBundle(makeGreedyBundle());
   }
   function makeGreedyBundle(){
-    let cash=state.cash,ups=clone(state.upgrades),items=[],factor=1;
+    let cash=currentCash(),ups=clone(state.upgrades),items=[],factor=1;
     for(let i=0;i<20;i++){
       let best=null;
       for(const [key,u] of Object.entries(ups)){
@@ -174,41 +173,43 @@
       }
       if(!best)break;
       cash-=best.u.cost;factor*=best.f;const found=items.find(x=>x.key===best.key);if(found){found.count++;found.cost+=best.u.cost}else items.push({key:best.key,name:best.u.name,count:1,cost:best.u.cost});
-      best.u.value=best.u.cap==null?best.u.value+best.u.step:Math.min(best.u.cap,best.u.value+best.u.step);best.u.cost*=best.u.growth;
+      best.u.value=best.u.cap==null?best.u.value+best.u.step:Math.min(best.u.cap,best.u.value+best.u.step);best.u.step+=best.u.stepDelta||0;best.u.cost*=best.u.growth;
     }
     return {items,cash,factor};
   }
   function effectFor(u){const n=u.cap==null?u.value+u.step:Math.min(u.cap,u.value+u.step),c=Math.max(u.value,1e-9);switch(u.model){case'linear':return n/c;case'reducer':return Math.pow(n/c,state.settings.reducerExponent);case'gravity':return Math.pow(1+state.settings.gravityEffect,(n-u.value)/0.5);case'rare':return (1+9*n/100)/(1+9*u.value/100);case'feed':return Math.pow(n/c,state.settings.feedExponent);case'spikeSize':return Math.pow(1+state.settings.spikeSizeEffect,(n-u.value)/Math.max(u.step,1e-9));default:return 1}}
   function renderBundle(data){const root=$('bundle');root.textContent='';if(!data||!data.items||!data.items.length){root.innerHTML='<div class="smalltext muted">現在資金ではまとめ買い候補なし。</div>';return}for(const x of data.items){const d=document.createElement('div');d.className='bundleItem';d.innerHTML=`<span>${x.name}</span><span class="count">×${x.count}</span><span>${money(x.cost)}</span>`;root.appendChild(d)}const m=document.createElement('div');m.className='smalltext muted';m.textContent=`予測残金 ${money(data.cash)} / 合成速度 ×${trim(data.factor)}（近似）`;root.appendChild(m)}
-  function applyPurchase(key){const u=state.upgrades[key];if(!u||u.cost>state.cash||!unlocked(u)||capped(u))return;snapshot();const f=effect(u);state.cash=Math.max(0,state.cash-u.cost);state.dps*=f;u.value=nextValue(u);u.cost*=u.growth;render();flash(`${u.name} を反映。次価格は ${money(u.cost)} と予測。`)}
-  function onUpgradeEdit(e){const key=e.target.dataset.key,u=state.upgrades[key];snapshot();if(e.target.classList.contains('cost')){const n=parseMoney(e.target.value);u.cost=Number.isFinite(n)?n:0}else{const n=num(e.target.value);if(e.target.classList.contains('value'))u.value=n;if(e.target.classList.contains('step'))u.step=n;if(e.target.classList.contains('growth'))u.growth=Math.max(1,n)}render()}
+  function applyPurchase(key){const u=state.upgrades[key];settleCash();if(!u||u.cost>state.cash||!unlocked(u)||capped(u))return;snapshot();const purchaseCost=u.cost,f=effect(u);state.cash=Math.max(0,state.cash-purchaseCost);state.cashUpdatedAt=Date.now();state.dps*=f;u.value=nextValue(u);u.step+=u.stepDelta||0;u.cost*=u.growth;render();flash(`${u.name} ${money(purchaseCost)} を反映。残金 ${money(currentCash())} / 次価格 ${money(u.cost)}。`)}
+  function onUpgradeEdit(e){const key=e.target.dataset.key,u=state.upgrades[key];snapshot();if(e.target.classList.contains('cost')){const n=parseMoney(e.target.value);u.cost=Number.isFinite(n)?n:0}else{const n=num(e.target.value);if(e.target.classList.contains('value'))u.value=n;if(e.target.classList.contains('step'))u.step=n;if(e.target.classList.contains('stepDelta'))u.stepDelta=n;if(e.target.classList.contains('growth'))u.growth=Math.max(1,n)}render()}
   function bindMain(){
     $('level').addEventListener('change',()=>{snapshot();state.level=Math.max(1,Math.min(50,Math.round(num($('level').value,1))));render()});
-    $('cash').addEventListener('change',()=>{const n=parseMoney($('cash').value);if(Number.isFinite(n)){snapshot();state.cash=Math.max(0,n)}render()});
+    $('cash').addEventListener('change',()=>{const n=parseMoney($('cash').value);if(Number.isFinite(n)){snapshot();state.cash=Math.max(0,n);state.cashUpdatedAt=Date.now()}render()});
+    $('cashAuto').addEventListener('change',()=>{settleCash();snapshot();state.cashAuto=$('cashAuto').checked;state.cashUpdatedAt=Date.now();render();flash(state.cashAuto?'所持金の自動追従をONにしました。':'所持金の自動追従をOFFにしました。')});
     $('dps').addEventListener('change',()=>{snapshot();state.dps=Math.max(0,num($('dps').value,state.dps));render()});
-    $('income').addEventListener('change',()=>{const n=parseMoney($('income').value);snapshot();state.income=Number.isFinite(n)?Math.max(0,n):0;render()});
+    $('income').addEventListener('change',()=>{settleCash();const n=parseMoney($('income').value);snapshot();state.income=Number.isFinite(n)?Math.max(0,n):0;state.cashUpdatedAt=Date.now();render();flash(state.income>0?`${money(state.income)}/s で所持金を追従します。`:'$/s を0にしました。')});
     $('levelUp').addEventListener('click',()=>{snapshot();state.level=Math.min(50,state.level+1);render();flash(`Lv${state.level} に更新。`)});
     $('cashFocus').addEventListener('click',()=>{$('cash').focus();$('cash').select()});
     $('undo').addEventListener('click',()=>{if(!undoStack.length)return;state=undoStack.pop();render();flash('1手戻しました。')});
-    $('reset').addEventListener('click',()=>{if(!confirm('保存状態を初期値へ戻しますか？'))return;snapshot();state=clone(defaults);render()});
+    $('reset').addEventListener('click',()=>{if(!confirm('保存状態を初期値へ戻しますか？'))return;snapshot();state=clone(defaults);state.cashUpdatedAt=Date.now();render()});
     for(const id of ['prestigeCash','prestigeDmg','refining','crush','expEff','ingots'])$(id).addEventListener('change',()=>{snapshot();state[id]=Math.max(0,num($(id).value,state[id]));render()});
     for(const id of ['reducerExponent','gravityEffect','feedExponent','spikeSizeEffect'])$(id).addEventListener('change',()=>{snapshot();state.settings[id]=Math.max(0,num($(id).value,state.settings[id]));render()});
     $('parseBtn').addEventListener('click',parsePaste);$('copyState').addEventListener('click',copyState);
   }
   function parsePaste(){const txt=$('paste').value;if(!txt.trim())return;snapshot();let changed=0;const set=(re,fn)=>{const m=txt.match(re);if(m){fn(m);changed++}};
-    set(/Level\s*:\s*(\d+)/i,m=>state.level=Math.min(50,Math.max(1,+m[1])));set(/(?:所持金|満タン時の所持金|Lv50到達時の所持金)\s*:\s*([^\n\r]+)/i,m=>{const n=parseMoney(m[1]);if(Number.isFinite(n))state.cash=n});set(/DPS\s*:\s*([\d.]+[KMBT]?)/i,m=>{const n=parseMoney(m[1]);if(Number.isFinite(n))state.dps=n});set(/瞬間\$?\/s\s*:\s*([^\n\r]+)/i,m=>{const n=parseMoney(m[1].replace(/\/s.*/,''));if(Number.isFinite(n))state.income=n});
+    set(/Level\s*:\s*(\d+)/i,m=>state.level=Math.min(50,Math.max(1,+m[1])));set(/(?:所持金|満タン時の所持金|Lv50到達時の所持金)\s*:\s*([^\n\r]+)/i,m=>{const n=parseMoney(m[1]);if(Number.isFinite(n)){state.cash=n;state.cashUpdatedAt=Date.now()}});set(/DPS\s*:\s*([\d.]+[KMBT]?)/i,m=>{const n=parseMoney(m[1]);if(Number.isFinite(n))state.dps=n});set(/瞬間\$?\/s\s*:\s*([^\n\r]+)/i,m=>{const n=parseMoney(m[1].replace(/\/s.*/,''));if(Number.isFinite(n)){state.income=n;state.cashUpdatedAt=Date.now()}});
     const aliases={speed:'Speed',power:'Power',reducer:'Reducer',gravity:'Gravity',spikeCount:'Spike Count',spikeSize:'Spike Size',feed:'Feed Rate',rare:'Rare Ore Rate'};
-    for(const [key,label] of Object.entries(aliases)){const esc=label.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');const valRe=new RegExp(esc+'\\s*:\\s*(?:x)?([\\d.]+)%?','i'),vm=txt.match(valRe);if(vm){state.upgrades[key].value=+vm[1];changed++}const pricePatterns=[new RegExp(esc+'次回価格\\s*:\\s*\\$?([\\d.]+\\s*[KMBT]?)','i'),new RegExp(esc+'[\\s\\S]{0,45}?次回価格\\s*:\\s*\\$?([\\d.]+\\s*[KMBT]?)','i')];for(const re of pricePatterns){const pm=txt.match(re);if(pm){const n=parseMoney(pm[1]);if(Number.isFinite(n)){state.upgrades[key].cost=n;changed++}break}}}
+    for(const [key,label] of Object.entries(aliases)){const esc=label.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),u=state.upgrades[key];const valRe=new RegExp(esc+'\\s*:\\s*(?:x)?([\\d.]+)%?','i'),vm=txt.match(valRe);if(vm){u.value=+vm[1];changed++}const pricePatterns=[new RegExp(esc+'次回価格\\s*:\\s*\\$?([\\d.]+\\s*[KMBT]?)(?:\\s*\\+\\s*([\\d.]+))?','i'),new RegExp(esc+'[\\s\\S]{0,45}?次回価格\\s*:\\s*\\$?([\\d.]+\\s*[KMBT]?)(?:\\s*\\+\\s*([\\d.]+))?','i')];for(const re of pricePatterns){const pm=txt.match(re);if(pm){const n=parseMoney(pm[1]);if(Number.isFinite(n)){u.cost=n;changed++}if(pm[2]){u.step=+pm[2];changed++}break}}}
     render();flash(`${changed}項目を反映しました。`)}
-  function copyState(){const u=state.upgrades;const text=`Level: ${state.level}\n所持金: ${money(state.cash)}\nDPS: ${trim(state.dps)}\nSpeed: ${trim(u.speed.value)}\nSpeed次回価格: ${money(u.speed.cost)} +${trim(u.speed.step)}\nPower: ${trim(u.power.value)}\nPower次回価格: ${money(u.power.cost)} +${trim(u.power.step)}\nReducer: ${trim(u.reducer.value)}\nReducer次回価格: ${u.reducer.cost?money(u.reducer.cost):'?'} +${trim(u.reducer.step)}\nRare Ore Rate: ${trim(u.rare.value)}%\nRare次回価格: ${money(u.rare.cost)} +${trim(u.rare.step)}\nGravity: ${trim(u.gravity.value)}\nGravity次回価格: ${money(u.gravity.cost)} +${trim(u.gravity.step)}\nSpike Count: ${trim(u.spikeCount.value)}${capped(u.spikeCount)?' MAX':''}\nSpike Size: ${trim(u.spikeSize.value)}${capped(u.spikeSize)?' MAX':''}\nFeed Rate: x${trim(u.feed.value)}${capped(u.feed)?' MAX':''}`;$('paste').value=text;$('paste').focus();$('paste').select();flash('テキスト欄に生成しました。Ctrl+Cでコピーできます。')}
+  function copyState(){const u=state.upgrades;const text=`Level: ${state.level}\n所持金: ${money(currentCash())}\nDPS: ${trim(state.dps)}\nSpeed: ${trim(u.speed.value)}\nSpeed次回価格: ${money(u.speed.cost)} +${trim(u.speed.step)}\nPower: ${trim(u.power.value)}\nPower次回価格: ${money(u.power.cost)} +${trim(u.power.step)}\nReducer: ${trim(u.reducer.value)}\nReducer次回価格: ${u.reducer.cost?money(u.reducer.cost):'?'} +${trim(u.reducer.step)}\nRare Ore Rate: ${trim(u.rare.value)}%\nRare次回価格: ${money(u.rare.cost)} +${trim(u.rare.step)}\nGravity: ${trim(u.gravity.value)}\nGravity次回価格: ${money(u.gravity.cost)} +${trim(u.gravity.step)}\nSpike Count: ${trim(u.spikeCount.value)}${capped(u.spikeCount)?' MAX':''}\nSpike Size: ${trim(u.spikeSize.value)}${capped(u.spikeSize)?' MAX':''}\nFeed Rate: x${trim(u.feed.value)}${capped(u.feed)?' MAX':''}`;$('paste').value=text;$('paste').focus();$('paste').select();flash('テキスト欄に生成しました。Ctrl+Cでコピーできます。')}
   function flash(msg){$('toast').textContent=msg;setTimeout(()=>{if($('toast').textContent===msg)$('toast').textContent=''},3500)}
   function timerText(ms){const t=Math.max(0,ms),m=Math.floor(t/60000),s=Math.floor((t%60000)/1000),d=Math.floor((t%1000)/100);return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')+'.'+d}
   function updateTimer(){const e=timerId?timerElapsed+performance.now()-timerStart:timerElapsed;$('timer').textContent=timerText(e)}
   function toggleTimer(){if(timerId){timerElapsed+=performance.now()-timerStart;clearInterval(timerId);timerId=0;$('timerToggle').textContent='再開'}else{timerStart=performance.now();timerId=setInterval(updateTimer,100);$('timerToggle').textContent='停止'}updateTimer()}
-  function recordTimer(){if(timerId){timerElapsed+=performance.now()-timerStart;clearInterval(timerId);timerId=0}if(timerElapsed<=0)return;snapshot();state.history.unshift({from:state.level,to:Math.min(50,state.level+1),ms:Math.round(timerElapsed),cash:state.cash,dps:state.dps,at:Date.now()});state.history=state.history.slice(0,30);timerElapsed=0;updateTimer();$('timerToggle').textContent='開始';render()}
+  function recordTimer(){if(timerId){timerElapsed+=performance.now()-timerStart;clearInterval(timerId);timerId=0}if(timerElapsed<=0)return;snapshot();state.history.unshift({from:state.level,to:Math.min(50,state.level+1),ms:Math.round(timerElapsed),cash:currentCash(),dps:state.dps,at:Date.now()});state.history=state.history.slice(0,30);timerElapsed=0;updateTimer();$('timerToggle').textContent='開始';render()}
   function renderHistory(){const root=$('history');root.textContent='';if(!state.history.length){root.innerHTML='<div class="smalltext muted">まだ記録なし。</div>';return}for(const h of state.history){const d=document.createElement('div');d.className='historyRow';d.innerHTML=`<span>Lv${h.from}→${h.to}</span><b>${timerText(h.ms)}</b><span>${money(h.cash)}</span>`;root.appendChild(d)}}
   function bindTimer(){$('timerToggle').addEventListener('click',toggleTimer);$('timerRecord').addEventListener('click',recordTimer);$('timerClear').addEventListener('click',()=>{snapshot();state.history=[];render()});document.addEventListener('keydown',e=>{const t=e.target.tagName;if((t==='INPUT'||t==='TEXTAREA'||t==='SELECT')||e.ctrlKey||e.metaKey||e.altKey)return;if(e.key.toLowerCase()==='t'){e.preventDefault();toggleTimer()}})}
-  bindMain();bindTimer();render();updateTimer();
+  function refreshLiveCash(){if(!state.cashAuto||state.income<=0)return;if(document.activeElement!==$('cash'))$('cash').value=trim(currentCash());$('cashAutoState').textContent='ON';const cash=currentCash();document.querySelectorAll('.buy').forEach(btn=>{const u=state.upgrades[btn.dataset.key];btn.disabled=!u||!unlocked(u)||capped(u)||!validCost(u)||u.cost>cash});renderRecommendation()}
+  bindMain();bindTimer();render();updateTimer();setInterval(refreshLiveCash,1000);window.addEventListener('pagehide',()=>{settleCash();save()});
 })();
 </script>
 </body>
