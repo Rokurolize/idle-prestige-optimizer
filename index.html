@@ -103,12 +103,12 @@
   const clone=x=>JSON.parse(JSON.stringify(x));
   const BASE_GAME_DPS=1.31/(1.14*1.56);
   const defaults={
-    schemaVersion:4,level:1,cash:220.27,cashAuto:true,cashUpdatedAt:Date.now(),dps:1.31,dpsCalibration:1,income:0,prestigeCash:1.14,prestigeDmg:1.14,refining:1.56,crush:1.56,expEff:1,ingots:0,
+    schemaVersion:5,level:1,cash:220.27,cashAuto:true,cashUpdatedAt:Date.now(),dps:1.31,dpsCalibration:1,income:0,prestigeCash:1.14,prestigeDmg:1.14,refining:1.56,crush:1.56,expEff:1,ingots:0,
     settings:{reducerExponent:1.25,gravityEffect:0.022,feedExponent:0.75,spikeSizeEffect:0.00397},history:[],timing:{level:null,startedAt:null,recordedAt:null},levelAnchors:[],
     upgrades:{
       speed:{name:'Speed',value:10,cost:50,step:1,stepDelta:0,growth:1.2,unlock:1,cap:null,model:'linear',confidence:'高'},
       power:{name:'Power',value:2,cost:14,step:2.2,stepDelta:0.4,growth:1.73,unlock:1,cap:null,model:'linear',confidence:'高'},
-      reducer:{name:'Reducer',value:1,cost:0,step:0.05,stepDelta:0,growth:1.58,unlock:11,cap:null,model:'reducer',confidence:'高'},
+      reducer:{name:'Reducer',value:1,cost:75000,step:0.05,stepDelta:0,growth:1.58,unlock:11,cap:null,model:'reducer',confidence:'高'},
       gravity:{name:'Gravity',value:9.81,cost:3000,step:0.5,stepDelta:0,growth:2,unlock:1,cap:null,model:'gravity',confidence:'中'},
       spikeCount:{name:'Spike Count',value:4,cost:1200,step:1,stepDelta:0,growth:1.5,unlock:5,cap:12,model:'linear',confidence:'中'},
       spikeSize:{name:'Spike Size',value:1,cost:1500,step:0.015,stepDelta:0,growth:1.25,unlock:8,cap:1.15,model:'spikeSize',confidence:'低'},
@@ -118,9 +118,10 @@
   };
   let state=load(); let undoStack=[]; let timerId=0;
 
-  function load(){try{const raw=localStorage.getItem(KEY);if(!raw)return clone(defaults);const parsed=JSON.parse(raw),loaded=merge(clone(defaults),parsed);if(num(parsed.schemaVersion,1)<2)migratePowerV1(loaded);if(num(parsed.schemaVersion,1)<4)migrateDerivedDpsV4(loaded,parsed);loaded.schemaVersion=4;loaded.cashUpdatedAt=Date.now();return loaded}catch{return clone(defaults)}}
+  function load(){try{const raw=localStorage.getItem(KEY);if(!raw)return clone(defaults);const parsed=JSON.parse(raw),loaded=merge(clone(defaults),parsed);if(num(parsed.schemaVersion,1)<2)migratePowerV1(loaded);if(num(parsed.schemaVersion,1)<4)migrateDerivedDpsV4(loaded,parsed);if(num(parsed.schemaVersion,1)<5)migrateReducerCostV5(loaded);loaded.schemaVersion=5;loaded.cashUpdatedAt=Date.now();return loaded}catch{return clone(defaults)}}
   function migratePowerV1(s){const u=s.upgrades&&s.upgrades.power;if(!u||!Number.isFinite(u.cost)||u.cost<=0)return;const baseCost=14,growth=1.73,n=Math.max(0,Math.round(Math.log(u.cost/baseCost)/Math.log(growth))),expectedCost=baseCost*Math.pow(growth,n);if(Math.abs(expectedCost-u.cost)/expectedCost>0.03)return;u.value=2+n*2.2+0.4*n*(n-1)/2;u.step=2.2+0.4*n;u.stepDelta=0.4}
   function migrateDerivedDpsV4(s,parsed){if(s.upgrades.spikeCount.cost<=0)s.upgrades.spikeCount.cost=1200;if(s.upgrades.feed.cost<=0)s.upgrades.feed.cost=400;if(Math.abs(num(s.upgrades.feed.growth,1.5)-1.5)<1e-9)s.upgrades.feed.growth=1.4;if(Math.abs(num(s.settings.gravityEffect,0.023)-0.023)<1e-9)s.settings.gravityEffect=0.022;if(Math.abs(num(s.settings.spikeSizeEffect,0.003)-0.003)<1e-9)s.settings.spikeSizeEffect=0.00397;s.dpsCalibration=1;const raw=rawModelDps(s,1),old=num(parsed.dps,NaN);if(Number.isFinite(old)&&raw>0&&old/raw>=0.8&&old/raw<=1.2)s.dpsCalibration=old/raw;s.dps=rawModelDps(s)}
+  function migrateReducerCostV5(s){const u=s.upgrades&&s.upgrades.reducer;if(u&&(!Number.isFinite(u.cost)||u.cost<=0))u.cost=75000}
   function merge(a,b){for(const k of Object.keys(b||{})){if(b[k]&&typeof b[k]==='object'&&!Array.isArray(b[k])&&a[k]&&typeof a[k]==='object'&&!Array.isArray(a[k]))merge(a[k],b[k]);else a[k]=b[k]}return a}
   function save(){localStorage.setItem(KEY,JSON.stringify(state));$('savePill').textContent='保存済み';}
   function snapshot(){undoStack.push(clone(state));if(undoStack.length>30)undoStack.shift()}
@@ -208,7 +209,7 @@
     $('level').addEventListener('change',()=>{snapshot();state.level=Math.max(1,Math.min(50,Math.round(num($('level').value,1))));startLevelTiming(state.level,Date.now(),'manual');render();flash(`Lv${state.level} を現在時刻から計測開始。`)});
     $('cash').addEventListener('change',()=>{const n=parseMoney($('cash').value);if(Number.isFinite(n)){snapshot();state.cash=Math.max(0,n);state.cashUpdatedAt=Date.now()}render()});
     $('cashAuto').addEventListener('change',()=>{settleCash();snapshot();state.cashAuto=$('cashAuto').checked;state.cashUpdatedAt=Date.now();render();flash(state.cashAuto?'所持金の自動追従をONにしました。':'所持金の自動追従をOFFにしました。')});
-    $('dps').addEventListener('change',()=>{const observed=Math.max(0,num($('dps').value,currentDps()));snapshot();calibrateDps(observed);render();flash(`実測DPS ${trim(observed)} でモデルを校正しました。`)});
+    $('dps').addEventListener('change',()=>{const parsed=parseMoney($('dps').value),observed=Number.isFinite(parsed)?Math.max(0,parsed):currentDps();snapshot();calibrateDps(observed);render();flash(`実測DPS ${trim(observed)} でモデルを校正しました。`)});
     $('income').addEventListener('change',()=>{settleCash();const n=parseMoney($('income').value);snapshot();state.income=Number.isFinite(n)?Math.max(0,n):0;state.cashUpdatedAt=Date.now();render();flash(state.income>0?`${money(state.income)}/s で所持金を追従します。`:'$/s を0にしました。')});
     $('levelUp').addEventListener('click',()=>{if(state.level>=50)return;settleCash();snapshot();const now=Date.now(),from=state.level;recoverMissedTiming(from,now);const reward=levelUpReward(from);if(reward!=null)state.cash+=reward;state.cashUpdatedAt=now;state.level=Math.min(50,state.level+1);startLevelTiming(state.level,now,'level-up');render();flash(reward==null?`Lv${state.level} に更新・計測開始。Lv${from}→${state.level}の即時収入は未観測です。`:`Lv${state.level} に更新・計測開始。即時収入 ${money(reward)} を加算。`)});
     $('cashFocus').addEventListener('click',()=>{$('cash').focus();$('cash').select()});
