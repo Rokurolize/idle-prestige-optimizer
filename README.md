@@ -15,6 +15,10 @@ Physics-based idle game's Prestige route optimizer built from observed play data
 - One-click full-budget mirroring applies the currently displayed investment plan in one action, including repeated purchases and cumulative price/increment growth.
 - Level Up mirrors its immediate cash reward. Observed Lv3–9 rewards are stored directly; Lv10+ follows the observed `346.35 × 1.36^(level-10)` progression with cent truncation.
 - Level Up also starts the next level's wall-clock timer automatically. Exact EXP-full records and missed-record press-to-press fallbacks are kept distinct, while persistent level-start anchors allow elapsed time to be recovered from any recorded level.
+- The fast-play EXP-full button now performs the optimizer-side Level Up in the same action: it records the exact elapsed time, applies the observed Level Up cash reward, advances the level, and immediately starts the next timer.
+- Recommendation text explicitly separates the best currently affordable purchase from the budget-agnostic ROI leader and the next price threshold, avoiding misleading "leader" wording while cash is still accumulating.
+- Timestamped run/action logs capture purchases, bundle syncs, level transitions, cash/DPS calibration, recommendation context, and upgrade snapshots. Logs can be copied as JSON or saved as CSV; a Lv50→Lv1 reset is automatically marked as a new Prestige run.
+- Displayed DPS is treated as deterministic model output multiplied by a live calibration factor, so population/instance-dependent in-game modifiers can be absorbed without re-fitting the underlying upgrade formula.
 - Optional live-cash tracking advances the balance from an entered $/s estimate so the user does not need to retype a constantly changing balance.
 - Cash accepts the game's compact notation directly (`47.65M`, `850K`, `1.2B`) so no manual unit conversion is needed.
 - Power uses the observed growing increment sequence (+2.2 initially, then +0.4 to the increment per purchase).
