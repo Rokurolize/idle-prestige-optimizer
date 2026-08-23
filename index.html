@@ -14,8 +14,8 @@
     .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.btn{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:8px 11px}.btn.primary{background:var(--accent);border-color:var(--accent);color:#251600;font-weight:700}.btn.good{background:#173527;border-color:#2f6f4d;color:#bdf5d2}.btn.danger{background:#351c1c;border-color:#713636;color:#ffd1d1}.btn.small{padding:5px 8px;font-size:12px}.btn:disabled{opacity:.45;cursor:not-allowed}
     .recommend{border:1px solid #6d5326;background:#241d12;border-radius:10px;padding:12px;margin-bottom:10px}.recommend .headline{font-size:18px;font-weight:800;color:#ffd48b}.recommend .reason{font-size:12px;color:#d7c8ad;margin-top:6px;line-height:1.5}.metricrow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}.metric{background:#11171f;border:1px solid var(--line);border-radius:9px;padding:8px}.metric span{display:block;color:var(--muted);font-size:10px}.metric b{font-size:14px;font-variant-numeric:tabular-nums}
     .upgradeList{display:flex;flex-direction:column;gap:8px}.upgradeRow{display:grid;grid-template-columns:minmax(105px,1.15fr) minmax(74px,.75fr) minmax(94px,.9fr) minmax(75px,.7fr) minmax(112px,1fr);grid-template-areas:"name value cost effect action" "name meta meta roi action";gap:6px 8px;align-items:center;background:#11171f;border:1px solid var(--line);border-radius:10px;padding:8px}.upgradeRow.locked{opacity:.5}.upgradeName{grid-area:name;min-width:0}.upgradeValue{grid-area:value}.upgradeCost{grid-area:cost}.upgradeEffect{grid-area:effect;text-align:right;font-size:12px}.upgradeMeta{grid-area:meta;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.upgradeRoi{grid-area:roi;text-align:right;font-size:11px}.upgradeAction{grid-area:action}.upgradeAction .btn{width:100%;min-height:44px;font-weight:700}.upname{font-weight:700}.sub{font-size:10px;color:var(--muted);margin-top:2px}.roi.good{color:var(--good)}.miniField{display:flex;align-items:center;gap:4px;color:var(--muted);font-size:10px}.miniField input{width:70px;padding:5px}.compactInput,.costInput{width:100%;padding:7px}.fieldCap{display:block;color:var(--muted);font-size:9px;margin-bottom:2px}@media(max-width:720px){.upgradeRow{grid-template-columns:1fr 1fr;grid-template-areas:"name action" "value cost" "effect roi" "meta meta"}.upgradeEffect,.upgradeRoi{text-align:left}.upgradeAction .btn{min-height:40px}.miniField{flex:1}.miniField input{width:100%}}
-    .bundle{display:flex;flex-direction:column;gap:6px}.bundleItem{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;background:#11171f;border:1px solid var(--line);border-radius:8px;padding:8px}.bundleItem .count{color:var(--accent);font-weight:800}.muted{color:var(--muted)}.smalltext{font-size:11px;line-height:1.5}.note{font-size:10px;color:var(--muted);margin-top:8px;line-height:1.5}
-    .timer{font-variant-numeric:tabular-nums;font-size:32px;font-weight:800;letter-spacing:.04em;text-align:center;margin:4px 0 10px}.timerBtns{display:grid;grid-template-columns:1fr 1fr;gap:8px}.history{max-height:170px;overflow:auto;margin-top:8px}.historyRow{display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding:6px 2px;font-size:11px}.parse{margin-top:10px}.parse textarea{min-height:96px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px}.toast{min-height:18px;margin-top:6px;color:var(--good);font-size:11px}
+    .bundle{display:flex;flex-direction:column;gap:6px}.bundleItem{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;background:#11171f;border:1px solid var(--line);border-radius:8px;padding:8px}.bundleItem .count{color:var(--accent);font-weight:800}.bundleApply{margin-top:4px;min-height:44px;font-weight:800}.muted{color:var(--muted)}.smalltext{font-size:11px;line-height:1.5}.note{font-size:10px;color:var(--muted);margin-top:8px;line-height:1.5}
+    .timer{font-variant-numeric:tabular-nums;font-size:32px;font-weight:800;letter-spacing:.04em;text-align:center;margin:4px 0 10px}.timerBtns{display:grid;grid-template-columns:1fr 1fr;gap:8px}.anchorLine{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:7px;align-items:center;margin-top:9px;font-size:11px;color:var(--muted)}.anchorLine select{padding:6px}.anchorLine b{color:var(--text);font-variant-numeric:tabular-nums}.history{max-height:190px;overflow:auto;margin-top:8px}.historyRow{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;border-bottom:1px solid var(--line);padding:6px 2px;font-size:11px}.historyRow .kind{color:var(--muted);font-size:9px}.parse{margin-top:10px}.parse textarea{min-height:96px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px}.toast{min-height:18px;margin-top:6px;color:var(--good);font-size:11px}
     details{border-top:1px solid var(--line);margin-top:10px;padding-top:10px}summary{cursor:pointer;color:var(--muted);font-size:11px}.settingsGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}@media(max-width:600px){.settingsGrid{grid-template-columns:1fr}}
   </style>
 </head>
@@ -72,7 +72,8 @@
       <div class="card" style="margin-top:12px">
         <h2>レベル計測</h2>
         <div class="timer" id="timer">00:00.0</div>
-        <div class="timerBtns"><button class="btn primary" id="timerToggle">開始</button><button class="btn" id="timerRecord">満タン記録</button></div>
+        <div class="timerBtns"><button class="btn" id="timerToggle">今から計測</button><button class="btn primary" id="timerRecord">EXP満タン記録</button></div>
+        <div class="anchorLine"><span>経過起点</span><select id="anchorSelect" aria-label="経過時間の起点レベル"></select><b id="anchorElapsed">—</b></div>
         <div class="actions"><button class="btn small" id="timerClear">履歴消去</button><span class="smalltext muted">ショートカット: 入力欄外で T</span></div>
         <div class="history" id="history"></div>
       </div>
@@ -101,8 +102,8 @@
   const $=id=>document.getElementById(id);
   const clone=x=>JSON.parse(JSON.stringify(x));
   const defaults={
-    schemaVersion:2,level:1,cash:220.27,cashAuto:true,cashUpdatedAt:Date.now(),dps:1.31,income:0,prestigeCash:1.14,prestigeDmg:1.14,refining:1.56,crush:1.56,expEff:1,ingots:0,
-    settings:{reducerExponent:1.25,gravityEffect:0.023,feedExponent:0.75,spikeSizeEffect:0.003},history:[],
+    schemaVersion:3,level:1,cash:220.27,cashAuto:true,cashUpdatedAt:Date.now(),dps:1.31,income:0,prestigeCash:1.14,prestigeDmg:1.14,refining:1.56,crush:1.56,expEff:1,ingots:0,
+    settings:{reducerExponent:1.25,gravityEffect:0.023,feedExponent:0.75,spikeSizeEffect:0.003},history:[],timing:{level:null,startedAt:null,recordedAt:null},levelAnchors:[],
     upgrades:{
       speed:{name:'Speed',value:10,cost:50,step:1,stepDelta:0,growth:1.2,unlock:1,cap:null,model:'linear',confidence:'高'},
       power:{name:'Power',value:2,cost:14,step:2.2,stepDelta:0.4,growth:1.73,unlock:1,cap:null,model:'linear',confidence:'高'},
@@ -114,9 +115,9 @@
       rare:{name:'Rare Ore Rate',value:0,cost:50000,step:0.5,stepDelta:0,growth:2,unlock:1,cap:10,model:'rare',confidence:'高'}
     }
   };
-  let state=load(); let undoStack=[]; let timerStart=0,timerElapsed=0,timerId=0;
+  let state=load(); let undoStack=[]; let timerId=0;
 
-  function load(){try{const raw=localStorage.getItem(KEY);if(!raw)return clone(defaults);const parsed=JSON.parse(raw),loaded=merge(clone(defaults),parsed);if(num(parsed.schemaVersion,1)<2)migratePowerV1(loaded);loaded.schemaVersion=2;loaded.cashUpdatedAt=Date.now();return loaded}catch{return clone(defaults)}}
+  function load(){try{const raw=localStorage.getItem(KEY);if(!raw)return clone(defaults);const parsed=JSON.parse(raw),loaded=merge(clone(defaults),parsed);if(num(parsed.schemaVersion,1)<2)migratePowerV1(loaded);loaded.schemaVersion=3;loaded.cashUpdatedAt=Date.now();return loaded}catch{return clone(defaults)}}
   function migratePowerV1(s){const u=s.upgrades&&s.upgrades.power;if(!u||!Number.isFinite(u.cost)||u.cost<=0)return;const baseCost=14,growth=1.73,n=Math.max(0,Math.round(Math.log(u.cost/baseCost)/Math.log(growth))),expectedCost=baseCost*Math.pow(growth,n);if(Math.abs(expectedCost-u.cost)/expectedCost>0.03)return;u.value=2+n*2.2+0.4*n*(n-1)/2;u.step=2.2+0.4*n;u.stepDelta=0.4}
   function merge(a,b){for(const k of Object.keys(b||{})){if(b[k]&&typeof b[k]==='object'&&!Array.isArray(b[k])&&a[k]&&typeof a[k]==='object'&&!Array.isArray(a[k]))merge(a[k],b[k]);else a[k]=b[k]}return a}
   function save(){localStorage.setItem(KEY,JSON.stringify(state));$('savePill').textContent='保存済み';}
@@ -135,6 +136,11 @@
     if(level>=10&&level<50)return floorCents(346.35*Math.pow(1.36,level-10));
     return null;
   }
+  function timingActiveFor(level=state.level){return !!state.timing&&state.timing.level===level&&Number.isFinite(state.timing.startedAt)}
+  function timingElapsed(now=Date.now()){if(!timingActiveFor())return null;const end=Number.isFinite(state.timing.recordedAt)?state.timing.recordedAt:now;return Math.max(0,end-state.timing.startedAt)}
+  function addAnchor(level,at=Date.now(),source='level-up'){state.levelAnchors.push({level,at,source});state.levelAnchors=state.levelAnchors.slice(-60)}
+  function startLevelTiming(level,at=Date.now(),source='level-up'){state.timing={level,startedAt:at,recordedAt:null};addAnchor(level,at,source)}
+  function recoverMissedTiming(level,now=Date.now()){if(!timingActiveFor(level)||Number.isFinite(state.timing.recordedAt))return null;const ms=Math.max(0,now-state.timing.startedAt),entry={from:level,to:Math.min(50,level+1),ms,cash:currentCash(),dps:state.dps,at:now,source:'level-up'};state.history.unshift(entry);state.history=state.history.slice(0,60);return entry}
   function pct(v){return ((v-1)*100).toFixed(v<1.1?2:1)+'%'}
   function unlocked(u){return state.level>=u.unlock}
   function capped(u){return u.cap!=null&&u.value>=u.cap-1e-9}
@@ -150,7 +156,7 @@
     for(const id of ['prestigeCash','prestigeDmg','refining','crush','expEff','ingots'])$(id).value=state[id];
     for(const id of ['reducerExponent','gravityEffect','feedExponent','spikeSizeEffect'])$(id).value=state.settings[id];
     $('cashPerm').textContent='×'+trim(state.prestigeCash*state.refining);$('dmgPerm').textContent='×'+trim(state.prestigeDmg*state.crush);$('expPerm').textContent='×'+trim(state.expEff);
-    renderRows();renderRecommendation();renderHistory();save();
+    renderRows();renderRecommendation();renderHistory();renderTimingControls();save();
   }
   function renderRows(){
     const body=$('upgradeRows');body.textContent='';
@@ -173,7 +179,7 @@
     renderBundle(makeGreedyBundle());
   }
   function makeGreedyBundle(){
-    let cash=currentCash(),ups=clone(state.upgrades),items=[],factor=1;
+    let cash=currentCash(),ups=clone(state.upgrades),items=[],steps=[],factor=1;
     for(let i=0;i<20;i++){
       let best=null;
       for(const [key,u] of Object.entries(ups)){
@@ -181,22 +187,23 @@
         const f=effectFor(u),r=Math.log(Math.max(f,1))/u.cost;if(!best||r>best.r)best={key,u,f,r};
       }
       if(!best)break;
-      cash-=best.u.cost;factor*=best.f;const found=items.find(x=>x.key===best.key);if(found){found.count++;found.cost+=best.u.cost}else items.push({key:best.key,name:best.u.name,count:1,cost:best.u.cost});
+      const purchaseCost=best.u.cost;cash-=purchaseCost;factor*=best.f;steps.push({key:best.key,cost:purchaseCost,factor:best.f});const found=items.find(x=>x.key===best.key);if(found){found.count++;found.cost+=purchaseCost}else items.push({key:best.key,name:best.u.name,count:1,cost:purchaseCost});
       best.u.value=best.u.cap==null?best.u.value+best.u.step:Math.min(best.u.cap,best.u.value+best.u.step);best.u.step+=best.u.stepDelta||0;best.u.cost*=best.u.growth;
     }
-    return {items,cash,factor};
+    return {items,steps,cash,factor};
   }
   function effectFor(u){const n=u.cap==null?u.value+u.step:Math.min(u.cap,u.value+u.step),c=Math.max(u.value,1e-9);switch(u.model){case'linear':return n/c;case'reducer':return Math.pow(n/c,state.settings.reducerExponent);case'gravity':return Math.pow(1+state.settings.gravityEffect,(n-u.value)/0.5);case'rare':return (1+9*n/100)/(1+9*u.value/100);case'feed':return Math.pow(n/c,state.settings.feedExponent);case'spikeSize':return Math.pow(1+state.settings.spikeSizeEffect,(n-u.value)/Math.max(u.step,1e-9));default:return 1}}
-  function renderBundle(data){const root=$('bundle');root.textContent='';if(!data||!data.items||!data.items.length){root.innerHTML='<div class="smalltext muted">現在資金ではまとめ買い候補なし。</div>';return}for(const x of data.items){const d=document.createElement('div');d.className='bundleItem';d.innerHTML=`<span>${x.name}</span><span class="count">×${x.count}</span><span>${money(x.cost)}</span>`;root.appendChild(d)}const m=document.createElement('div');m.className='smalltext muted';m.textContent=`予測残金 ${money(data.cash)} / 合成速度 ×${trim(data.factor)}（近似）`;root.appendChild(m)}
+  function renderBundle(data){const root=$('bundle');root.textContent='';if(!data||!data.items||!data.items.length){root.innerHTML='<div class="smalltext muted">現在資金ではまとめ買い候補なし。</div>';return}for(const x of data.items){const d=document.createElement('div');d.className='bundleItem';d.innerHTML=`<span>${x.name}</span><span class="count">×${x.count}</span><span>${money(x.cost)}</span>`;root.appendChild(d)}const m=document.createElement('div');m.className='smalltext muted';m.textContent=`予測残金 ${money(data.cash)} / 合成速度 ×${trim(data.factor)}（近似）`;root.appendChild(m);const b=document.createElement('button');b.id='applyBundle';b.type='button';b.className='btn good bundleApply';b.textContent=`この全額投資案を一括反映（${data.steps.length}回）`;b.addEventListener('click',()=>applyBundle(data));root.appendChild(b);const n=document.createElement('div');n.className='note';n.textContent='ゲーム側で上記と同じ購入を済ませた後に1回押してください。各購入を順番に押した場合と同じ値・増加量・次価格・DPSへ進めます。';root.appendChild(n)}
   function applyPurchase(key){const u=state.upgrades[key];settleCash();if(!u||u.cost>state.cash||!unlocked(u)||capped(u))return;snapshot();const purchaseCost=u.cost,f=effect(u);state.cash=Math.max(0,state.cash-purchaseCost);state.cashUpdatedAt=Date.now();state.dps*=f;u.value=nextValue(u);u.step+=u.stepDelta||0;u.cost*=u.growth;render();flash(`${u.name} ${money(purchaseCost)} を反映。残金 ${money(currentCash())} / 次価格 ${money(u.cost)}。`)}
+  function applyBundle(data){if(!data||!Array.isArray(data.steps)||!data.steps.length)return;settleCash();const total=data.steps.reduce((sum,s)=>sum+s.cost,0);if(total>state.cash+1e-6){render();flash('現在の追跡所持金ではこの全額案を反映できません。');return}snapshot();let spent=0;for(const step of data.steps){const u=state.upgrades[step.key];if(!u||!unlocked(u)||capped(u)||Math.abs(u.cost-step.cost)>Math.max(0.02,step.cost*0.001)){state=undoStack.pop()||state;render();flash('アップグレード状態が提案時から変わったため一括反映を中止しました。');return}const f=effect(u);spent+=u.cost;state.dps*=f;u.value=nextValue(u);u.step+=u.stepDelta||0;u.cost*=u.growth}state.cash=Math.max(0,state.cash-spent);state.cashUpdatedAt=Date.now();render();flash(`全額投資案 ${data.steps.length}回 / ${money(spent)} を一括反映。残金 ${money(currentCash())}。`)}
   function onUpgradeEdit(e){const key=e.target.dataset.key,u=state.upgrades[key];snapshot();if(e.target.classList.contains('cost')){const n=parseMoney(e.target.value);u.cost=Number.isFinite(n)?n:0}else{const n=num(e.target.value);if(e.target.classList.contains('value'))u.value=n;if(e.target.classList.contains('step'))u.step=n;if(e.target.classList.contains('stepDelta'))u.stepDelta=n;if(e.target.classList.contains('growth'))u.growth=Math.max(1,n)}render()}
   function bindMain(){
-    $('level').addEventListener('change',()=>{snapshot();state.level=Math.max(1,Math.min(50,Math.round(num($('level').value,1))));render()});
+    $('level').addEventListener('change',()=>{snapshot();state.level=Math.max(1,Math.min(50,Math.round(num($('level').value,1))));startLevelTiming(state.level,Date.now(),'manual');render();flash(`Lv${state.level} を現在時刻から計測開始。`)});
     $('cash').addEventListener('change',()=>{const n=parseMoney($('cash').value);if(Number.isFinite(n)){snapshot();state.cash=Math.max(0,n);state.cashUpdatedAt=Date.now()}render()});
     $('cashAuto').addEventListener('change',()=>{settleCash();snapshot();state.cashAuto=$('cashAuto').checked;state.cashUpdatedAt=Date.now();render();flash(state.cashAuto?'所持金の自動追従をONにしました。':'所持金の自動追従をOFFにしました。')});
     $('dps').addEventListener('change',()=>{snapshot();state.dps=Math.max(0,num($('dps').value,state.dps));render()});
     $('income').addEventListener('change',()=>{settleCash();const n=parseMoney($('income').value);snapshot();state.income=Number.isFinite(n)?Math.max(0,n):0;state.cashUpdatedAt=Date.now();render();flash(state.income>0?`${money(state.income)}/s で所持金を追従します。`:'$/s を0にしました。')});
-    $('levelUp').addEventListener('click',()=>{if(state.level>=50)return;settleCash();snapshot();const from=state.level,reward=levelUpReward(from);if(reward!=null)state.cash+=reward;state.cashUpdatedAt=Date.now();state.level=Math.min(50,state.level+1);render();flash(reward==null?`Lv${state.level} に更新。Lv${from}→${state.level}の即時収入は未観測です。`:`Lv${state.level} に更新。即時収入 ${money(reward)} を加算。`)});
+    $('levelUp').addEventListener('click',()=>{if(state.level>=50)return;settleCash();snapshot();const now=Date.now(),from=state.level;recoverMissedTiming(from,now);const reward=levelUpReward(from);if(reward!=null)state.cash+=reward;state.cashUpdatedAt=now;state.level=Math.min(50,state.level+1);startLevelTiming(state.level,now,'level-up');render();flash(reward==null?`Lv${state.level} に更新・計測開始。Lv${from}→${state.level}の即時収入は未観測です。`:`Lv${state.level} に更新・計測開始。即時収入 ${money(reward)} を加算。`)});
     $('cashFocus').addEventListener('click',()=>{$('cash').focus();$('cash').select()});
     $('undo').addEventListener('click',()=>{if(!undoStack.length)return;state=undoStack.pop();render();flash('1手戻しました。')});
     $('reset').addEventListener('click',()=>{if(!confirm('保存状態を初期値へ戻しますか？'))return;snapshot();state=clone(defaults);state.cashUpdatedAt=Date.now();render()});
@@ -212,13 +219,14 @@
   function copyState(){const u=state.upgrades;const text=`Level: ${state.level}\n所持金: ${money(currentCash())}\nDPS: ${trim(state.dps)}\nSpeed: ${trim(u.speed.value)}\nSpeed次回価格: ${money(u.speed.cost)} +${trim(u.speed.step)}\nPower: ${trim(u.power.value)}\nPower次回価格: ${money(u.power.cost)} +${trim(u.power.step)}\nReducer: ${trim(u.reducer.value)}\nReducer次回価格: ${u.reducer.cost?money(u.reducer.cost):'?'} +${trim(u.reducer.step)}\nRare Ore Rate: ${trim(u.rare.value)}%\nRare次回価格: ${money(u.rare.cost)} +${trim(u.rare.step)}\nGravity: ${trim(u.gravity.value)}\nGravity次回価格: ${money(u.gravity.cost)} +${trim(u.gravity.step)}\nSpike Count: ${trim(u.spikeCount.value)}${capped(u.spikeCount)?' MAX':''}\nSpike Size: ${trim(u.spikeSize.value)}${capped(u.spikeSize)?' MAX':''}\nFeed Rate: x${trim(u.feed.value)}${capped(u.feed)?' MAX':''}`;$('paste').value=text;$('paste').focus();$('paste').select();flash('テキスト欄に生成しました。Ctrl+Cでコピーできます。')}
   function flash(msg){$('toast').textContent=msg;setTimeout(()=>{if($('toast').textContent===msg)$('toast').textContent=''},3500)}
   function timerText(ms){const t=Math.max(0,ms),m=Math.floor(t/60000),s=Math.floor((t%60000)/1000),d=Math.floor((t%1000)/100);return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')+'.'+d}
-  function updateTimer(){const e=timerId?timerElapsed+performance.now()-timerStart:timerElapsed;$('timer').textContent=timerText(e)}
-  function toggleTimer(){if(timerId){timerElapsed+=performance.now()-timerStart;clearInterval(timerId);timerId=0;$('timerToggle').textContent='再開'}else{timerStart=performance.now();timerId=setInterval(updateTimer,100);$('timerToggle').textContent='停止'}updateTimer()}
-  function recordTimer(){if(timerId){timerElapsed+=performance.now()-timerStart;clearInterval(timerId);timerId=0}if(timerElapsed<=0)return;snapshot();state.history.unshift({from:state.level,to:Math.min(50,state.level+1),ms:Math.round(timerElapsed),cash:currentCash(),dps:state.dps,at:Date.now()});state.history=state.history.slice(0,30);timerElapsed=0;updateTimer();$('timerToggle').textContent='開始';render()}
-  function renderHistory(){const root=$('history');root.textContent='';if(!state.history.length){root.innerHTML='<div class="smalltext muted">まだ記録なし。</div>';return}for(const h of state.history){const d=document.createElement('div');d.className='historyRow';d.innerHTML=`<span>Lv${h.from}→${h.to}</span><b>${timerText(h.ms)}</b><span>${money(h.cash)}</span>`;root.appendChild(d)}}
-  function bindTimer(){$('timerToggle').addEventListener('click',toggleTimer);$('timerRecord').addEventListener('click',recordTimer);$('timerClear').addEventListener('click',()=>{snapshot();state.history=[];render()});document.addEventListener('keydown',e=>{const t=e.target.tagName;if((t==='INPUT'||t==='TEXTAREA'||t==='SELECT')||e.ctrlKey||e.metaKey||e.altKey)return;if(e.key.toLowerCase()==='t'){e.preventDefault();toggleTimer()}})}
+  function updateTimer(){const elapsed=timingElapsed();$('timer').textContent=elapsed==null?'--:--.-':timerText(elapsed);const selected=Number($('anchorSelect').value),anchor=state.levelAnchors.find(a=>a.at===selected);$('anchorElapsed').textContent=anchor?timerText(Date.now()-anchor.at):'—'}
+  function restartTimer(){snapshot();startLevelTiming(state.level,Date.now(),'manual');render();updateTimer();flash(`Lv${state.level} を現在時刻から再計測します。`)}
+  function recordTimer(){if(!timingActiveFor())return;if(Number.isFinite(state.timing.recordedAt)){flash('このLvのEXP満タン時刻は記録済みです。');return}snapshot();const now=Date.now(),ms=Math.max(0,now-state.timing.startedAt);state.timing.recordedAt=now;state.history.unshift({from:state.level,to:Math.min(50,state.level+1),ms,cash:currentCash(),dps:state.dps,at:now,source:'full'});state.history=state.history.slice(0,60);render();flash(`Lv${state.level} EXP満タンを ${timerText(ms)} で記録。`)}
+  function renderHistory(){const root=$('history');root.textContent='';if(!state.history.length){root.innerHTML='<div class="smalltext muted">まだ記録なし。Lv +1だけでも押下間隔を自動保存します。</div>';return}for(const h of state.history){const d=document.createElement('div');d.className='historyRow';const kind=h.source==='full'?'EXP満タン':h.source==='level-up'?'次Lv押下まで':'記録';d.innerHTML=`<span>Lv${h.from}→${h.to}<div class="kind">${kind}</div></span><b>${timerText(h.ms)}</b><span>${money(h.cash)}</span>`;root.appendChild(d)}}
+  function renderTimingControls(){const active=timingActiveFor(),recorded=active&&Number.isFinite(state.timing.recordedAt);$('timerToggle').textContent=active?'現在Lvを再計測':'今から計測';$('timerRecord').disabled=!active||recorded;const select=$('anchorSelect'),previous=select.value;select.textContent='';for(const a of state.levelAnchors){const o=document.createElement('option');o.value=String(a.at);o.textContent=`Lv${a.level} 開始`;select.appendChild(o)}if(select.options.length){select.value=[...select.options].some(o=>o.value===previous)?previous:select.options[select.options.length-1].value}else{const o=document.createElement('option');o.value='';o.textContent='起点なし';select.appendChild(o)}updateTimer()}
+  function bindTimer(){$('timerToggle').addEventListener('click',restartTimer);$('timerRecord').addEventListener('click',recordTimer);$('timerClear').addEventListener('click',()=>{snapshot();state.history=[];render()});$('anchorSelect').addEventListener('change',updateTimer);document.addEventListener('keydown',e=>{const t=e.target.tagName;if((t==='INPUT'||t==='TEXTAREA'||t==='SELECT')||e.ctrlKey||e.metaKey||e.altKey)return;if(e.key.toLowerCase()==='t'){e.preventDefault();restartTimer()}})}
   function refreshLiveCash(){if(!state.cashAuto||state.income<=0)return;if(document.activeElement!==$('cash'))$('cash').value=cashValue(currentCash());$('cashAutoState').textContent='ON';const cash=currentCash();document.querySelectorAll('.buy').forEach(btn=>{const u=state.upgrades[btn.dataset.key];btn.disabled=!u||!unlocked(u)||capped(u)||!validCost(u)||u.cost>cash});renderRecommendation()}
-  bindMain();bindTimer();render();updateTimer();setInterval(refreshLiveCash,1000);window.addEventListener('pagehide',()=>{settleCash();save()});
+  bindMain();bindTimer();render();updateTimer();timerId=setInterval(updateTimer,100);setInterval(refreshLiveCash,1000);window.addEventListener('pagehide',()=>{settleCash();save()});
 })();
 </script>
 </body>
