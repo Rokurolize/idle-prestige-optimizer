@@ -43,7 +43,7 @@
         <div class="actions">
           <button class="btn" id="cashFocus">所持金を更新</button>
           <button class="btn" id="undo">1手戻す</button>
-          <button class="btn danger" id="reset">初期値へ戻す</button>
+          <button class="btn danger" id="reset">全状態を初期化</button>
         </div>
         <div class="note">ゲームと同じ 4×2 配置です。各カードは「名前 → 現在値 → 次コスト/+増加 → 購入反映」の順で照合できます。金枠は現在の効率首位です。詳細な価格倍率・増加Δは各カードの「詳細」に退避しています。</div>
       </div>
@@ -79,7 +79,7 @@
         <h2>行動ログ <span class="actionRun" id="runLabel"></span></h2>
         <div class="smalltext muted">時刻・Level・Cash・DPS・購入内容・その瞬間の推薦状態を保存します。将来の周回ルート最適化用データです。</div>
         <div class="actionLog" id="actionLog"></div>
-        <div class="actions"><button class="btn small" id="copyActionLog">JSONコピー</button><button class="btn small" id="downloadActionCsv">CSV保存</button><button class="btn small" id="newRun">Prestige / 新周回を記録</button><button class="btn small danger" id="clearActionLog">ログ消去</button></div>
+        <div class="actions"><button class="btn small" id="copyActionLog">JSONコピー</button><button class="btn small" id="downloadActionCsv">CSV保存</button><button class="btn small primary" id="newRun">Prestige → 新周回開始</button><button class="btn small danger" id="clearActionLog">ログ消去</button></div>
       </div>
 
       <div class="card" style="margin-top:12px">
@@ -175,6 +175,19 @@
   function upgradeSnapshot(){return Object.fromEntries(Object.entries(state.upgrades).map(([k,u])=>[k,u.value]))}
   function logAction(type,detail={},at=Date.now(),recommendation=null){if(!Array.isArray(state.actionLog))state.actionLog=[];const entry={at,runId:runId(),type,level:state.level,cash:currentCash(),dps:currentDps(),dpsCalibration:state.dpsCalibration,upgrades:upgradeSnapshot(),recommendation:recommendation||recommendationSnapshot(),detail};state.actionLog.push(entry);state.actionLog=state.actionLog.slice(-2000);return entry}
   function markNewRun(reason='manual',at=Date.now()){const previous=runId();logAction('prestige_boundary',{reason,endedRun:previous},at);state.run={id:previous+1,startedAt:at};logAction('run_start',{reason,previousRun:previous},at);return state.run.id}
+  function resetNormalStateForPrestige(at=Date.now(),reason='manual Prestige/new-run button'){
+    settleCash();
+    const previous=runId(),preserved={
+      prestigeCash:state.prestigeCash,prestigeDmg:state.prestigeDmg,refining:state.refining,crush:state.crush,expEff:state.expEff,ingots:state.ingots,
+      settings:clone(state.settings),actionLog:state.actionLog,cashAuto:state.cashAuto,income:state.income
+    };
+    logAction('prestige_boundary',{reason,endedRun:previous},at);
+    const fresh=clone(defaults);
+    fresh.prestigeCash=preserved.prestigeCash;fresh.prestigeDmg=preserved.prestigeDmg;fresh.refining=preserved.refining;fresh.crush=preserved.crush;fresh.expEff=preserved.expEff;fresh.ingots=preserved.ingots;
+    fresh.settings=preserved.settings;fresh.actionLog=preserved.actionLog;fresh.cashAuto=preserved.cashAuto;fresh.income=preserved.income;
+    fresh.level=1;fresh.cash=0;fresh.cashUpdatedAt=at;fresh.dpsCalibration=1;fresh.history=[];fresh.levelAnchors=[];fresh.run={id:previous+1,startedAt:at};
+    state=fresh;startLevelTiming(1,at,'prestige');logAction('run_start',{reason,previousRun:previous,normalStateReset:true},at);return state.run.id;
+  }
   function maybeDetectPrestigeReset(fromLevel,toLevel,at=Date.now(),source='level-sync'){if(fromLevel>=45&&toLevel<=2&&toLevel<fromLevel)markNewRun('auto-detected '+source,at)}
 
   function render(){
@@ -245,7 +258,7 @@
     $('levelUp').addEventListener('click',manualLevelUp);
     $('cashFocus').addEventListener('click',()=>{$('cash').focus();$('cash').select()});
     $('undo').addEventListener('click',()=>{if(!undoStack.length)return;state=undoStack.pop();render();flash('1手戻しました。')});
-    $('reset').addEventListener('click',()=>{if(!confirm('通常状態を初期値へ戻しますか？ 行動ログは保持します。'))return;const at=Date.now(),logs=state.actionLog,run=state.run;logAction('state_reset_requested',{},at);snapshot();state=clone(defaults);state.actionLog=logs;state.run=run;state.cashUpdatedAt=at;logAction('state_reset',{},at);render()});
+    $('reset').addEventListener('click',()=>{if(!confirm('永久強化・通常強化・行動ログを含むOptimizerの全保存状態を初期化しますか？ Prestige時には使わないでください。'))return;const at=Date.now();snapshot();state=clone(defaults);state.cashUpdatedAt=at;render();flash('Optimizerの全状態を初期化しました。')});
     for(const id of ['prestigeCash','prestigeDmg','refining','crush','expEff','ingots'])$(id).addEventListener('change',()=>{const before=state[id],at=Date.now();snapshot();state[id]=Math.max(0,num($(id).value,state[id]));logAction('permanent_edit',{field:id,before,after:state[id]},at);render()});
     for(const id of ['reducerExponent','gravityExponent','feedExponent','spikeSizeEffect'])$(id).addEventListener('change',()=>{const before=state.settings[id],at=Date.now();snapshot();state.settings[id]=Math.max(0,num($(id).value,state.settings[id]));logAction('model_setting',{field:id,before,after:state.settings[id]},at);render()});
     $('parseBtn').addEventListener('click',parsePaste);$('copyState').addEventListener('click',copyState);
@@ -272,7 +285,7 @@
   function downloadActionCsv(){const rows=state.actionLog||[],head=['time_iso','run_id','type','level','cash','dps','dps_live_factor','detail_json','recommendation_json','upgrades_json'],lines=[head.join(',')];for(const a of rows)lines.push([new Date(a.at).toISOString(),a.runId,a.type,a.level,a.cash,a.dps,a.dpsCalibration,a.detail,a.recommendation,a.upgrades].map(csvCell).join(','));const blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=`prestige-run-actions-${Date.now()}.csv`;document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);flash(`行動ログ ${rows.length}件をCSV保存しました。`)}
   function renderTimingControls(){const active=timingActiveFor();$('timerToggle').textContent=active?'現在Lvを再計測':'今から計測';$('timerRecord').textContent=state.level>=50?'Lv50到達済み':'EXP満タン → Lv+1';$('timerRecord').disabled=state.level>=50;const select=$('anchorSelect'),previous=select.value;select.textContent='';for(const a of state.levelAnchors){const o=document.createElement('option');o.value=String(a.at);o.textContent=`Lv${a.level} 開始`;select.appendChild(o)}if(select.options.length){select.value=[...select.options].some(o=>o.value===previous)?previous:select.options[select.options.length-1].value}else{const o=document.createElement('option');o.value='';o.textContent='起点なし';select.appendChild(o)}updateTimer()}
   function bindTimer(){$('timerToggle').addEventListener('click',restartTimer);$('timerRecord').addEventListener('click',recordTimer);$('timerClear').addEventListener('click',()=>{const count=state.history.length,at=Date.now();snapshot();state.history=[];logAction('level_history_clear',{count},at);render()});$('anchorSelect').addEventListener('change',updateTimer);document.addEventListener('keydown',e=>{const t=e.target.tagName;if((t==='INPUT'||t==='TEXTAREA'||t==='SELECT')||e.ctrlKey||e.metaKey||e.altKey)return;if(e.key.toLowerCase()==='t'){e.preventDefault();restartTimer()}})}
-  function bindActionLog(){$('copyActionLog').addEventListener('click',copyActionLog);$('downloadActionCsv').addEventListener('click',downloadActionCsv);$('newRun').addEventListener('click',()=>{const at=Date.now();settleCash();snapshot();const id=markNewRun('manual Prestige/new-run button',at);render();flash(`Run #${id} の開始を記録しました。`)});$('clearActionLog').addEventListener('click',()=>{if(!confirm('行動ログをすべて消去しますか？ レベル計測履歴は残ります。'))return;state.actionLog=[];save();renderActionLog();flash('行動ログを消去しました。')})}
+  function bindActionLog(){$('copyActionLog').addEventListener('click',copyActionLog);$('downloadActionCsv').addEventListener('click',downloadActionCsv);$('newRun').addEventListener('click',()=>{if(!confirm('Prestige後の新周回として、Level・Cash・通常アップグレードをリセットします。永久強化と行動ログは保持します。続行しますか？'))return;const at=Date.now();snapshot();const id=resetNormalStateForPrestige(at);render();flash(`Run #${id} をLv1から開始しました。永久強化と過去ログは保持しています。`)});$('clearActionLog').addEventListener('click',()=>{if(!confirm('行動ログをすべて消去しますか？ レベル計測履歴は残ります。'))return;state.actionLog=[];save();renderActionLog();flash('行動ログを消去しました。')})}
   function refreshLiveCash(){if(!state.cashAuto||state.income<=0)return;if(document.activeElement!==$('cash'))$('cash').value=compactMoneyValue(currentCash());$('cashAutoState').textContent='ON';const cash=currentCash();document.querySelectorAll('.buy').forEach(btn=>{const u=state.upgrades[btn.dataset.key];btn.disabled=!u||!unlocked(u)||capped(u)||!validCost(u)||u.cost>cash});renderRecommendation()}
   bindMain();bindTimer();bindActionLog();render();updateTimer();timerId=setInterval(updateTimer,100);setInterval(refreshLiveCash,1000);window.addEventListener('pagehide',()=>{settleCash();save()});
 })();
