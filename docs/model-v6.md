@@ -108,6 +108,21 @@ New decision logs separate:
 
 State paste also recognizes feed rate, small-equivalent feed rate, crush rate, ore HP, and rarity values and stores them as causal telemetry observations.
 
+### Catch-up reconciliation and observation quality
+
+UI synchronization speed must never be mistaken for game speed. When the player advances several levels or buys upgrades while not looking at the optimizer, reconciliation is represented as one `catchup_sync` event rather than a burst of fake `exp_full_level_up` and `purchase` timestamps.
+
+Catch-up records preserve `fromLevel`, `toLevel`, optional aggregate elapsed time, active/AFK/mixed play mode, the authoritative current cash/state, and upgrade value transitions. A purchase count may be inferred from an exact value progression, but purchase order and timestamps remain `unknown` unless they were actually observed.
+
+Observation quality is explicit:
+
+- `exact`: a directly timed/observed event suitable for full causal training.
+- `level_exact`: the level is known but the exact within-level event timestamp is approximate.
+- `aggregate`: elapsed time is known only for a multi-level catch-up. It is retained as an aggregate constraint and is never divided into fake per-level durations.
+- `state_only`: only the reconciled current state is known; it is not a timing sample.
+
+If catch-up happens part-way through the current level, timing is marked `partial`. v5 disables cash-wait recommendations for that uncertain current-level boundary and v6 forces low confidence. Pressing EXP-full records that residual interval as non-trainable, advances one level, and starts an exact timer for the next level. The user can explicitly mark a catch-up as occurring immediately at the current level start when that is genuinely known.
+
 ## Validation
 
 `tools/replay-v6.mjs` performs walk-forward work-prior validation. For each completed level it constructs the prior using only information available before that level started, then compares it with the realized integrated work after the level completes.
