@@ -63,6 +63,7 @@ try {
     if (!ready) throw new Error('app not ready');
     return true;
   });
+  await sleep(300);
 
   await evaluate(`(() => {
     const key='prestige-route-optimizer-v1';
@@ -87,11 +88,14 @@ try {
     }
     for(let i=0;i<9000;i++){
       const run=1+(i%9),level=2+(i%63),at=now-9000000+i*700;
-      logs.push({at,runId:run,type:i%3===0?'purchase':'cash_sync',level,cash:1e8,dps:1000,detail:i%3===0?{key:'speed',cost:100,from:20,to:21}:{before:1e8,after:1e8+1000}});
+      if(i%8===7) logs.push({at,runId:run,type:'exp_full_level_up',level:level+1,cash:1e8,dps:1000,observationQuality:'exact',detail:{from:level,to:level+1,durationMs:60000,exactTiming:true}});
+      else logs.push({at,runId:run,type:'purchase',level,cash:1e8,dps:1000,detail:{key:'speed',cost:100,from:20,to:21}});
     }
     logs.push({at:now-60000,runId:10,type:'run_state',level:49,cash:st.cash,dps:1000,dpsCalibration:1,permanent:{prestigeCash:1.5,prestigeDmg:1.5,refining:5.44,crush:5.44,expEff:1.44,ingots:37},upgrades:st.upgrades});
     st.actionLog=logs;
-    localStorage.setItem(key,JSON.stringify(st));
+    const raw=JSON.stringify(st);
+    localStorage.setItem(key,raw);
+    localStorage.setItem(key+'-hot-v15',JSON.stringify({...st,schemaVersion:15,actionLog:logs.slice(-120),persistence:{logStore:'indexeddb-v1',logReady:false}}));
     return st.level;
   })()`);
   const created = await call('Target.createTarget', { url: `http://127.0.0.1:${httpPort}/?seeded=1` });
@@ -125,19 +129,29 @@ try {
     return {planCalls,planMs,maxLag};
   })()`);
 
-  const result = await evaluate(`(() => {
+  const result = await evaluate(`(async () => {
     window.confirm=()=>true;
     const metrics={stringifyMs:0,parseMs:0,planMs:0,stringifyCalls:0,parseCalls:0,planCalls:0};
     const stringify=JSON.stringify.bind(JSON),parse=JSON.parse.bind(JSON),plan=window.PrestigeV6.planShadow.bind(window.PrestigeV6);
     JSON.stringify=(...args)=>{const t=performance.now();try{return stringify(...args)}finally{metrics.stringifyMs+=performance.now()-t;metrics.stringifyCalls++}};
     JSON.parse=(...args)=>{const t=performance.now();try{return parse(...args)}finally{metrics.parseMs+=performance.now()-t;metrics.parseCalls++}};
     window.PrestigeV6.planShadow=(...args)=>{const t=performance.now();try{return plan(...args)}finally{metrics.planMs+=performance.now()-t;metrics.planCalls++}};
-    const measure=id=>{const before={...metrics},start=performance.now();document.getElementById(id).click();const total=performance.now()-start;return {total,stringifyMs:metrics.stringifyMs-before.stringifyMs,parseMs:metrics.parseMs-before.parseMs,planMs:metrics.planMs-before.planMs,stringifyCalls:metrics.stringifyCalls-before.stringifyCalls,parseCalls:metrics.parseCalls-before.parseCalls,planCalls:metrics.planCalls-before.planCalls}};
+    const measure=target=>{const el=typeof target==='string'?document.getElementById(target):target,before={...metrics},start=performance.now();el.click();const total=performance.now()-start;return {total,stringifyMs:metrics.stringifyMs-before.stringifyMs,parseMs:metrics.parseMs-before.parseMs,planMs:metrics.planMs-before.planMs,stringifyCalls:metrics.stringifyCalls-before.stringifyCalls,parseCalls:metrics.parseCalls-before.parseCalls,planCalls:metrics.planCalls-before.planCalls}};
+    const upgradeButton=document.querySelector('.buy:not(:disabled)');
+    const upgrade=upgradeButton?measure(upgradeButton):null;
+    let postUpgradeMaxLag=0,last=performance.now();
+    const postUpgradeTimer=setInterval(()=>{const now=performance.now();postUpgradeMaxLag=Math.max(postUpgradeMaxLag,now-last-10);last=now},10);
+    const postUpgradeBefore={...metrics};
+    await new Promise(resolve=>setTimeout(resolve,800));
+    clearInterval(postUpgradeTimer);
+    const postUpgrade={maxLag:postUpgradeMaxLag,planCalls:metrics.planCalls-postUpgradeBefore.planCalls,planMs:metrics.planMs-postUpgradeBefore.planMs};
     const levelUp=measure('levelUp');
     document.getElementById('level').value='50';
     const prestige=measure('newRun');
     const stored=JSON.parse(localStorage.getItem('prestige-route-optimizer-v1')||'null');
-    return {levelUp,prestige,storageChars:(localStorage.getItem('prestige-route-optimizer-v1')||'').length,logRows:stored?.actionLog?.length||0,pass:levelUp.total<50&&prestige.total<50&&levelUp.planCalls===0&&prestige.planCalls===0};
+    const idbRows=await new Promise((resolve,reject)=>{const r=indexedDB.open('prestige-route-optimizer-v1-history-v1',1);r.onerror=()=>reject(r.error);r.onsuccess=()=>{const q=r.result.transaction('actions','readonly').objectStore('actions').count();q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)}});
+    const storageChars=(localStorage.getItem('prestige-route-optimizer-v1')||'').length;
+    return {upgrade,postUpgrade,levelUp,prestige,storageChars,logRows:stored?.actionLog?.length||0,idbRows,pass:(!upgrade||upgrade.total<50)&&postUpgrade.maxLag<50&&postUpgrade.planCalls===0&&levelUp.total<50&&prestige.total<50&&(!upgrade||upgrade.planCalls===0)&&levelUp.planCalls===0&&prestige.planCalls===0&&storageChars<100000&&idbRows>9000};
   })()`);
   console.log(JSON.stringify({...result,live}));
   if (!result.pass || live.planCalls!==0 || live.maxLag>=50) process.exitCode = 1;
