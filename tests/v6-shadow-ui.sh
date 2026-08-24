@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root="$(cd "$(dirname "$0")/.." && pwd)"
+tmp="$(mktemp -d)"
+trap 'kill "${server_pid:-}" 2>/dev/null || true; rm -rf "$tmp"' EXIT
+cp "$root/index.html" "$root/v6-model.js" "$tmp/"
+python3 - "$tmp/index.html" <<'PY'
+from pathlib import Path
+import sys
+p=Path(sys.argv[1]); s=p.read_text()
+seed=r'''<script>(()=>{const now=Date.now(),ups={speed:{name:'Speed',value:20,cost:100,step:1,stepDelta:0,growth:1.2,unlock:1,cap:null,model:'linear',confidence:'高'},power:{name:'Power',value:20,cost:1000,step:4,stepDelta:.4,growth:1.73,unlock:1,cap:null,model:'linear',confidence:'高'},reducer:{name:'Reducer',value:1,cost:1e9,step:.05,stepDelta:0,growth:1.58,unlock:11,cap:null,model:'reducer',confidence:'高'},rare:{name:'Rare Ore Rate',value:5,cost:1e9,step:.5,stepDelta:0,growth:2,unlock:1,cap:null,model:'rare',confidence:'高'},gravity:{name:'Gravity',value:9.81,cost:1e9,step:.5,stepDelta:0,growth:2,unlock:1,cap:null,model:'gravity',confidence:'中'},spikeCount:{name:'Spike Count',value:12,cost:0,step:1,stepDelta:0,growth:1.5,unlock:5,cap:12,model:'linear',confidence:'中'},spikeSize:{name:'Spike Size',value:1.15,cost:0,step:.015,stepDelta:0,growth:1.25,unlock:8,cap:1.15,model:'spikeSize',confidence:'低'},feed:{name:'Feed Rate',value:4,cost:0,step:.1,stepDelta:0,growth:1.4,unlock:3,cap:4,model:'feed',confidence:'高'}},perm={prestigeCash:1.5,prestigeDmg:1.5,refining:5.44,crush:5.44,expEff:1.44,ingots:8},logs=[];for(const r of [1,2]){const st=now-300000+r*1000;logs.push({at:st,runId:r,type:'level_start',level:49,cash:1e9,dps:1000,dpsCalibration:1,permanent:perm,upgrades:ups});logs.push({at:st+60000,runId:r,type:'exp_full_level_up',level:50,cash:1e9,dps:1000,dpsCalibration:1,permanent:perm,upgrades:ups,detail:{from:49,to:50,durationMs:60000,exactTiming:true}})}const start=now-10000;logs.push({at:start,runId:3,type:'run_state',level:49,cash:5000,dps:1000,dpsCalibration:1,permanent:perm,upgrades:ups});localStorage.setItem('prestige-route-optimizer-v1',JSON.stringify({schemaVersion:14,run:{id:3,startedAt:now-1e6},level:49,cash:5000,cashAuto:false,cashUpdatedAt:now,income:100,incomeMode:'manual',prestigeCash:1.5,prestigeDmg:1.5,refining:5.44,crush:5.44,expEff:1.44,ingots:8,dpsCalibration:1,timing:{level:49,startedAt:start,recordedAt:null},actionLog:logs,v6:{mode:'active',afkMinutes:120,prestigeCount:9,prestigeGoal:25,ingotGoal:250,observations:[],observed:{},lastShadow:null},upgrades:ups,settings:{reducerExponent:1.25,gravityExponent:.715,feedExponent:.75,spikeSizeEffect:.00397}}))})();</script>'''
+probe=r'''<script>setTimeout(()=>{const before=document.getElementById('v6ShadowText').textContent,paste=document.getElementById('paste');paste.value=`Level: 49\n所持金: $5K\nDPS: 1000\nFeed rate 2.4 /s\nFeed rate (small) 11.49 /s\nOre HP\n Small 2.21M\n Medium 3.76M\n Large 6.39M\nCrush rate 0.4 /s (last 10s)`;document.getElementById('parseBtn').click();setTimeout(()=>{const saved=JSON.parse(localStorage.getItem('prestige-route-optimizer-v1')),mechanics=(saved.v6.observations||[]).find(x=>x.kind==='mechanics'),after=document.getElementById('v6ShadowText').textContent,out=document.createElement('pre');out.id='v6-shadow-ui-result';out.textContent=JSON.stringify({before,after,mechanics,pass:before.includes('v6:')&&before.includes('work prior')&&mechanics&&mechanics.crushRate===0.4&&mechanics.feedRate===2.4&&after.includes('observed-crush-rate')});document.body.appendChild(out)},220)},250)</script>'''
+s=s.replace('</head>',seed+'</head>').replace('</body>',probe+'</body>');p.write_text(s)
+PY
+port=$((22000 + RANDOM % 8000))
+python3 -m http.server "$port" --directory "$tmp" >"$tmp/server.log" 2>&1 & server_pid=$!
+sleep .2
+result="$(google-chrome --headless=new --disable-gpu --no-sandbox --virtual-time-budget=2600 --dump-dom "http://127.0.0.1:$port/" 2>"$tmp/chrome.log" | sed -n 's/.*<pre id="v6-shadow-ui-result">\(.*\)<\/pre>.*/\1/p')"
+echo "$result"
+grep -q '"pass":true' <<<"$result"
