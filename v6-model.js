@@ -5,7 +5,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
-  const VERSION = '6.0-shadow';
+  const VERSION = '6.1-shadow';
   const BASE_GAME_DPS = 0.73245;
   const UPGRADE_ORDER = ['speed', 'power', 'reducer', 'rare', 'gravity', 'spikeCount', 'spikeSize', 'feed'];
   // Bootstrap calibration from Runs #2-#6 using within-level fixed effects:
@@ -165,6 +165,13 @@
     };
   }
 
+  function isTrainableExactCompletion(event) {
+    if (!event || event.type !== 'exp_full_level_up' || !event.detail || !(num(event.detail.durationMs) > 0)) return false;
+    if (event.detail.exactTiming === false) return false;
+    if (event.observationQuality === 'aggregate' || event.observationQuality === 'state_only') return false;
+    return true;
+  }
+
   function completedLevelSegmentsFromRows(rows, endIndex, level, fallbackSettings) {
     if (endIndex < 0) return null;
     const end = rows[endIndex];
@@ -198,7 +205,7 @@
 
   function completedLevelSegments(actionLog, runId, level, fallbackSettings) {
     const rows = (actionLog || []).filter(e => num(e.runId, -1) === runId).sort((a, b) => a.at - b.at);
-    const endIndex = rows.findIndex(e => e.type === 'exp_full_level_up' && e.detail && num(e.detail.from, -1) === level && num(e.detail.durationMs) > 0);
+    const endIndex = rows.findIndex(e => isTrainableExactCompletion(e) && num(e.detail.from, -1) === level);
     return completedLevelSegmentsFromRows(rows, endIndex, level, fallbackSettings);
   }
 
@@ -233,6 +240,16 @@
   function buildWorkModel(actionLog, observations, currentRunId, fallbackSettings) {
     const byLevel = new Map();
     const byRun = new Map();
+    const aggregateConstraints = (actionLog || []).filter(e => e && e.type === 'catchup_sync' && e.detail && e.detail.aggregateOnly && num(e.detail.elapsedMs) > 0 && num(e.detail.toLevel, -1) > num(e.detail.fromLevel, -1)).map(e => ({
+      runId: num(e.runId, 1),
+      fromLevel: num(e.detail.fromLevel),
+      toLevel: num(e.detail.toLevel),
+      elapsedSeconds: num(e.detail.elapsedMs) / 1000,
+      playMode: e.detail.playMode || 'unknown',
+      observationQuality: e.observationQuality || e.detail.observationQuality || 'aggregate',
+      trainablePerLevel: false,
+      at: num(e.at)
+    }));
     const grouped = new Map();
     for (const e of actionLog || []) {
       const runId = num(e.runId, NaN);
@@ -244,7 +261,7 @@
       const rows = rawRows.sort((a, b) => a.at - b.at);
       for (let endIndex = 0; endIndex < rows.length; endIndex++) {
         const end = rows[endIndex];
-        if (end.type !== 'exp_full_level_up' || !end.detail || !(num(end.detail.durationMs) > 0)) continue;
+        if (!isTrainableExactCompletion(end)) continue;
         const level = num(end.detail.from, -1);
         if (!(level >= 1)) continue;
         const data = completedLevelSegmentsFromRows(rows, endIndex, level, fallbackSettings);
@@ -311,7 +328,7 @@
       };
     }
 
-    return {byLevel, byRun, prior};
+    return {byLevel, byRun, aggregateConstraints, prior};
   }
 
   function integratedCurrentWork(input, context) {
@@ -521,6 +538,7 @@
     const workModel = buildWorkModel(input.actionLog, input.observations, runId, state.settings);
     const prior = workModel.prior(state.level);
     if (!(prior.mid > 0)) return {status: 'insufficient-work-prior', first: null, confidence: 'low', reason: 'same/nearby level work prior is unavailable', workModel, context};
+    const timingQuality = input.levelTimingQuality || 'exact';
     const currentWork = integratedCurrentWork({actionLog: input.actionLog, runId, level: state.level, levelStartedAt: input.levelStartedAt, now, state}, context);
     const remainingWork = Math.max(0, prior.mid - currentWork);
     const baseState = clone(state);
@@ -577,6 +595,7 @@
             if (!validUpgradeAtLevel(u, node.level)) continue;
             const wait = Math.max(0, num(u.cost) - node.cash) / Math.max(1e-12, nodeRates.cashRate);
             if (!Number.isFinite(wait) || wait + latency >= timeToLevel) continue;
+            if (timingQuality !== 'exact' && node.level === state.level && wait >= .8) continue;
             let work = Math.max(0, node.remainingWork - nodeRates.expRate * wait);
             let cash = node.cash + nodeRates.cashRate * wait - num(u.cost);
             const upgraded = advanceUpgrade(node.upgrades, key);
@@ -626,7 +645,8 @@
       cashRate: baseRates.cashRate,
       context,
       workModel,
-      cashRateModel
+      cashRateModel,
+      timingQuality
     };
   }
 
@@ -643,8 +663,9 @@
     const stable = aKey === bKey;
     const samples = num(b.workPrior && b.workPrior.count, 0);
     const direct = num(b.workPrior && b.workPrior.directFraction, 0);
-    let confidence = stable && samples >= 3 ? 'medium' : 'low';
-    if (stable && samples >= 4 && direct >= .5) confidence = 'high';
+    const timingExact = (input.levelTimingQuality || 'exact') === 'exact';
+    let confidence = stable && samples >= 3 && timingExact ? 'medium' : 'low';
+    if (stable && samples >= 4 && direct >= .5 && timingExact) confidence = 'high';
     return {
       ...b,
       version: VERSION,
@@ -657,7 +678,8 @@
         workHigh: b.workPrior.high,
         etaLow: Math.max(0, b.workPrior.low - (b.workPrior.mid - b.remainingWork)) / Math.max(1e-12, b.expRate),
         etaMid: b.currentLevelSeconds,
-        etaHigh: Math.max(0, b.workPrior.high - (b.workPrior.mid - b.remainingWork)) / Math.max(1e-12, b.expRate)
+        etaHigh: Math.max(0, b.workPrior.high - (b.workPrior.mid - b.remainingWork)) / Math.max(1e-12, b.expRate),
+        partialCurrentLevel: !timingExact
       }
     };
   }
@@ -750,7 +772,7 @@
   }
 
   function walkForwardReplay(input) {
-    const rows = (input.actionLog || []).filter(e => e.type === 'exp_full_level_up' && e.detail && num(e.detail.durationMs) > 0).sort((a, b) => a.at - b.at);
+    const rows = (input.actionLog || []).filter(isTrainableExactCompletion).sort((a, b) => a.at - b.at);
     const out = [];
     for (const event of rows) {
       const from = num(event.detail.from, -1);
