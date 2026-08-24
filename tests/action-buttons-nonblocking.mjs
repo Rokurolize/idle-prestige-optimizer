@@ -81,9 +81,13 @@ try {
       }
     }
     const recommendation={bestAffordable:{key:'speed',name:'Speed',cost:100,value:20},roiLeader:{key:'speed',name:'Speed',cost:100,value:20},nearest:null,timePlan:{first:{key:'speed',name:'Speed',cost:100,wait:0,from:20,to:21},saved:12,finish:60,baseline:72,rate:{rate:2e6,low:2e6,high:2e6,count:0,source:'manual'}},interactionGate:{seconds:2,count:20,deadlineClosed:false,investmentLevels:1},v6Shadow:{version:'6.1-shadow',status:'ok',firstDecision:{type:'purchase',key:'speed',name:'Speed',cost:100,wait:0,from:20,to:21,level:49},first:{key:'speed',name:'Speed',cost:100,wait:0,from:20,to:21},savedSeconds:12,baselineSeconds:72,finishSeconds:60,currentLevelSeconds:60,targetLevel:50,stable:true,confidence:'high',searchCheck:{shallowFirst:'purchase:speed',deepFirst:'purchase:speed',shallowSaved:12,deepSaved:12},uncertainty:{workLow:50000,workMid:60000,workHigh:70000,etaLow:50,etaMid:60,etaHigh:70,partialCurrentLevel:false},workPrior:{low:50000,mid:60000,high:70000,count:9,source:'same-level',directFraction:1},throughputMode:'modeled'}};
-    for(let i=0;i<1000;i++){
+    for(let i=0;i<300;i++){
       const at=now-400000+i*50;
       logs.push({at,runId:10,type:'purchase',level:49,cash:2e9,dps:1000,dpsCalibration:1,permanent:{prestigeCash:1.5,prestigeDmg:1.5,refining:5.44,crush:5.44,expEff:1.44,ingots:37},upgrades:st.upgrades,observationQuality:'level_exact',observed:{cash:{value:2e9,source:'fixture'}},predicted:{cash:2e9,dps:1000,v6:recommendation.v6Shadow},modelVersion:'v5+v6-shadow',recommendation,detail:{source:'fixture',key:'speed',name:'Speed',cost:100,from:20,to:21,beforeCash:2e9,afterCash:2e9-100}});
+    }
+    for(let i=0;i<9000;i++){
+      const run=1+(i%9),level=2+(i%63),at=now-9000000+i*700;
+      logs.push({at,runId:run,type:i%3===0?'purchase':'cash_sync',level,cash:1e8,dps:1000,detail:i%3===0?{key:'speed',cost:100,from:20,to:21}:{before:1e8,after:1e8+1000}});
     }
     logs.push({at:now-60000,runId:10,type:'run_state',level:49,cash:st.cash,dps:1000,dpsCalibration:1,permanent:{prestigeCash:1.5,prestigeDmg:1.5,refining:5.44,crush:5.44,expEff:1.44,ingots:37},upgrades:st.upgrades});
     st.actionLog=logs;
@@ -110,6 +114,17 @@ try {
     return true;
   });
 
+  const live = await evaluate(`(async () => {
+    const original=window.PrestigeV6.planShadow;
+    let planCalls=0,planMs=0,maxLag=0,last=performance.now();
+    window.PrestigeV6.planShadow=(...args)=>{const t=performance.now();try{return original(...args)}finally{planMs+=performance.now()-t;planCalls++}};
+    const timer=setInterval(()=>{const now=performance.now();maxLag=Math.max(maxLag,now-last-10);last=now},10);
+    await new Promise(resolve=>setTimeout(resolve,6200));
+    clearInterval(timer);
+    window.PrestigeV6.planShadow=original;
+    return {planCalls,planMs,maxLag};
+  })()`);
+
   const result = await evaluate(`(() => {
     window.confirm=()=>true;
     const metrics={stringifyMs:0,parseMs:0,planMs:0,stringifyCalls:0,parseCalls:0,planCalls:0};
@@ -121,10 +136,11 @@ try {
     const levelUp=measure('levelUp');
     document.getElementById('level').value='50';
     const prestige=measure('newRun');
-    return {levelUp,prestige,storageChars:(localStorage.getItem('prestige-route-optimizer-v1')||'').length,pass:levelUp.total<100&&prestige.total<100};
+    const stored=JSON.parse(localStorage.getItem('prestige-route-optimizer-v1')||'null');
+    return {levelUp,prestige,storageChars:(localStorage.getItem('prestige-route-optimizer-v1')||'').length,logRows:stored?.actionLog?.length||0,pass:levelUp.total<50&&prestige.total<50&&levelUp.planCalls===0&&prestige.planCalls===0};
   })()`);
-  console.log(JSON.stringify(result));
-  if (!result.pass) process.exitCode = 1;
+  console.log(JSON.stringify({...result,live}));
+  if (!result.pass || live.planCalls!==0 || live.maxLag>=50) process.exitCode = 1;
 } finally {
   if (ws) ws.close();
   chrome.kill('SIGTERM');

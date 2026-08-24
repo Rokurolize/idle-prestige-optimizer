@@ -172,6 +172,16 @@
     return true;
   }
 
+  const WORK_STATE_TYPES = new Set([
+    'purchase', 'bundle_purchase', 'upgrade_edit', 'permanent_edit', 'model_setting',
+    'state_paste', 'state_reconcile', 'catchup_sync', 'dps_calibration',
+    'run_start', 'prestige_boundary', 'level_start', 'run_state', 'state'
+  ]);
+
+  function isWorkRelevantAction(event) {
+    return !!event && (isTrainableExactCompletion(event) || WORK_STATE_TYPES.has(event.type));
+  }
+
   function completedLevelSegmentsFromRows(rows, endIndex, level, fallbackSettings) {
     if (endIndex < 0) return null;
     const end = rows[endIndex];
@@ -204,7 +214,7 @@
   }
 
   function completedLevelSegments(actionLog, runId, level, fallbackSettings) {
-    const rows = (actionLog || []).filter(e => num(e.runId, -1) === runId).sort((a, b) => a.at - b.at);
+    const rows = (actionLog || []).filter(e => num(e.runId, -1) === runId && isWorkRelevantAction(e)).sort((a, b) => a.at - b.at);
     const endIndex = rows.findIndex(e => isTrainableExactCompletion(e) && num(e.detail.from, -1) === level);
     return completedLevelSegmentsFromRows(rows, endIndex, level, fallbackSettings);
   }
@@ -252,6 +262,7 @@
     }));
     const grouped = new Map();
     for (const e of actionLog || []) {
+      if (!isWorkRelevantAction(e)) continue;
       const runId = num(e.runId, NaN);
       if (!Number.isFinite(runId)) continue;
       if (!grouped.has(runId)) grouped.set(runId, []);
@@ -334,7 +345,7 @@
   function integratedCurrentWork(input, context) {
     const {actionLog, runId, level, levelStartedAt, now, state} = input;
     if (!Number.isFinite(levelStartedAt)) return 0;
-    const all = (actionLog || []).filter(e => num(e.runId, -1) === runId).sort((a, b) => a.at - b.at);
+    const all = (actionLog || []).filter(e => num(e.runId, -1) === runId && isWorkRelevantAction(e)).sort((a, b) => a.at - b.at);
     const rows = all.filter(e => e.at > levelStartedAt && e.at <= now && num(e.level, -1) === level);
     let current = clone(state);
     for (let i = all.length - 1; i >= 0; i--) {
