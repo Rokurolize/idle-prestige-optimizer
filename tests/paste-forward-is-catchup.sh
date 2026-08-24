@@ -3,7 +3,7 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 tmp="$(mktemp -d)"
 trap 'kill "${server_pid:-}" 2>/dev/null || true; rm -rf "$tmp"' EXIT
-cp "$root/index.html" "$root/v6-model.js" "$tmp/"
+cp "$root/index.html" "$root/v6-model.js" "$root/v6-worker.js" "$tmp/"
 python3 - "$tmp/index.html" <<'PY'
 from pathlib import Path
 import sys
