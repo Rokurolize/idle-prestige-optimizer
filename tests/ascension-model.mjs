@@ -22,6 +22,21 @@ assert.equal(M.OUTER_DAMAGE_FACTOR,.55);
 
 const cal=M.fitCalibration(M.DEFAULT_MEASUREMENTS);
 assert.ok(cal.physicalCap>=9&&cal.physicalCap<=13,`unexpected contact saturation asymptote ${cal.physicalCap}`);
+// High-level progression must stay finite in log space. The old implementation
+// overflowed required EXP at Lv2302 and accidentally made ~Lv2288 look optimal.
+assert.ok(Number.isFinite(M.requiredExpLog10(6000)));
+assert.ok(Number.isFinite(M.baseOreValueLog10(6000)));
+assert.ok(Number.isFinite(M.baseOreHpLog10(6000)));
+const highCore=[22,23,19,9,11],highIngot=[45,45,44,46,0,41,17,40];
+const highCurve=M.simulateCurve({maxTarget:4000,core:highCore,ingot:highIngot,slowdown:1e7,physicalCap:cal.physicalCap,totalIngotsEarned:M.inferTotalIngotsEarned(15.01e12,highIngot,true)});
+assert.ok(Number.isFinite(highCurve.times[2400])&&highCurve.times[2400]>0,'Lv2400 must remain simulatable');
+assert.ok(Number.isFinite(highCurve.times[3500])&&highCurve.times[3500]>highCurve.times[2400],'high-level time curve must remain monotone and finite');
+const highInput={objective:'ascensionEta',ascensionCount:15,totalCore:M.totalCoreForAscension(15),heldIngots:15.01e12,totalIngotsEarned:M.inferTotalIngotsEarned(15.01e12,highIngot,true),prestigeCount:11,normalAutoUnlocked:true,ingotLevels:highIngot,maxTargetLevel:4000,oneShotMargin:1,strictOneShot:true,dpsCalibration:1,hpCalibration:1,manualClickRate:4};
+const highResult=M.optimizeAscension(highInput,M.DEFAULT_MEASUREMENTS);
+assert.ok(highResult.plan&&highResult.plan.targetLevel>2302,`high-level optimizer must search past the old overflow wall, got ${highResult.plan&&highResult.plan.targetLevel}`);
+assert.ok(Number.isFinite(highResult.plan.seconds)&&Number.isFinite(highResult.plan.eta));
+assert.equal(highResult.plan.timingValidated,false,'A15 high-level AP is still an empirical extrapolation without same-config measurements');
+
 assert.ok(cal.rmse<1.5,`calibration RMSE too large: ${cal.rmse}`);
 for(const row of M.DEFAULT_MEASUREMENTS){
   const curve=M.simulateCurve({maxTarget:row.targetLevel,core:row.core,ingot:row.ingot,slowdown:row.slowdown,physicalCap:cal.physicalCap,totalIngotsEarned:row.totalIngotsEarned});
