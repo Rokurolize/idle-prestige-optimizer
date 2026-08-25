@@ -84,9 +84,24 @@ assert.ok(result.plan.gain>0&&result.plan.seconds>0&&result.plan.eta>0);
 const fresh={...input,totalIngotsEarned:0,ingotLevels:Array(8).fill(0)};
 const freshResult=M.optimizeAscension(fresh,M.DEFAULT_MEASUREMENTS);
 const ingotPlan=M.optimizeIngotUpgrades(fresh,freshResult,M.DEFAULT_MEASUREMENTS,24);
-assert.ok(ingotPlan.steps.length>0,'fresh Ascension should produce an Ingot purchase plan');
+assert.ok(ingotPlan.steps.length>0,'fresh Ascension should produce an Ingot purchase roadmap');
+assert.ok(ingotPlan.phases.length>0,'roadmap must expose phase-level Core/Slowdown/AP re-planning');
 assert.ok(ingotPlan.targetLevels.some((v,i)=>v>fresh.ingotLevels[i]));
 assert.ok(ingotPlan.steps[0].hourlyAfter>ingotPlan.steps[0].hourlyBefore,'purchase step should expose ▲/h contribution');
+assert.ok(ingotPlan.plannedEta<ingotPlan.baselineEta,'roadmap must reduce modeled time to the Ascension Ingot requirement');
+assert.equal(typeof ingotPlan.converged,'boolean');
+assert.ok(ingotPlan.nodesEvaluated>0&&ingotPlan.replans>0,'roadmap must report lookahead search/re-planning work');
+assert.ok(ingotPlan.steps.every(s=>Number.isInteger(s.prestigesBeforeBuy)&&s.prestigesBeforeBuy>=0),'Ingot purchases must be funded by whole Prestige runs');
+assert.ok(ingotPlan.phases.every(p=>Number.isInteger(p.prestigesDuring)&&p.prestigesDuring>=0),'phases must expose Prestige counts');
+for(const phase of ingotPlan.phases){
+  assert.equal(phase.core.length,5);
+  assert.ok(phase.changes.length>0);
+  assert.ok(phase.rateAfter>0&&phase.targetLevel>=50);
+}
+
+const alreadyBuiltResult=M.optimizeAscension({...input,objective:'ingotRate'},M.DEFAULT_MEASUREMENTS);
+const alreadyBuiltPlan=M.optimizeIngotUpgrades({...input,objective:'ingotRate'},alreadyBuiltResult,M.DEFAULT_MEASUREMENTS,24);
+assert.ok(alreadyBuiltPlan.plannedEta<=alreadyBuiltPlan.baselineEta+1e-6);
 
 const freshLocked={...fresh,normalAutoUnlocked:false,maxTargetLevel:700,strictOneShot:true,oneShotMargin:1};
 const freshLockedResult=M.optimizeAscension(freshLocked,M.DEFAULT_MEASUREMENTS);
@@ -112,16 +127,15 @@ const inferredLevels=[3,2,1,0,0,0,0,0];
 assert.equal(M.inferTotalIngotsEarned(1234,inferredLevels,true),1234+M.ingotBundleCost(inferredLevels)+300);
 assert.equal(M.inferTotalIngotsEarned(1234,inferredLevels,false),1234+M.ingotBundleCost(inferredLevels));
 
-// The default "next Ascension" goal is rate-based and therefore does not require
-// the user to know the current-Ascension Prestige counter.
-const rateInput={...input,objective:'ingotRate',prestigeCount:0,totalIngotsEarned:M.inferTotalIngotsEarned(0,input.ingotLevels,true)};
-const rateResult=M.optimizeAscension(rateInput,M.DEFAULT_MEASUREMENTS);
-assert.ok(rateResult.plan&&rateResult.plan.rate>0);
-const rateInputPretend25={...rateInput,prestigeCount:25};
-const rateResultPretend25=M.optimizeAscension(rateInputPretend25,M.DEFAULT_MEASUREMENTS);
-assert.equal(rateResult.plan.core.join(','),rateResultPretend25.plan.core.join(','));
-assert.equal(rateResult.plan.slowdown,rateResultPretend25.plan.slowdown);
-assert.equal(rateResult.plan.targetLevel,rateResultPretend25.plan.targetLevel);
+// The next-Ascension goal uses the visible current Prestige counter because
+// Ingots arrive only at Prestige and Ascension requires both held Ingots and 25P.
+const etaInput={...input,objective:'ascensionEta',prestigeCount:0,totalIngotsEarned:M.inferTotalIngotsEarned(0,input.ingotLevels,true)};
+const etaResult=M.optimizeAscension(etaInput,M.DEFAULT_MEASUREMENTS);
+assert.ok(etaResult.plan&&etaResult.plan.runs>=25);
+const etaInput24={...etaInput,prestigeCount:24};
+const etaResult24=M.optimizeAscension(etaInput24,M.DEFAULT_MEASUREMENTS);
+assert.ok(etaResult24.plan&&etaResult24.plan.runs>=1);
+assert.ok(etaResult24.plan.runs<=etaResult.plan.runs,'having 24/25 Prestige must not require more remaining runs');
 
 // Overnight ranking is a distinct goal: no Prestige during the sleep run, hence
 // Core Ingot must be zero and the optimizer maximizes the end-of-window score.
