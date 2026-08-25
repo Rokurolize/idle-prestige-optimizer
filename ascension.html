@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Ascension AFK Optimizer — CRUSH FACTORY IDLE</title>
+  <style>
+    :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:dark;--bg:#0b0e13;--panel:#131922;--panel2:#19212c;--line:#2d3949;--text:#edf3fb;--muted:#91a0b4;--accent:#a77bff;--gold:#f7c65b;--good:#64d79a;--warn:#ffd166;--bad:#ff8080;--blue:#80c6ff}*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#0c1017,#090c11 35%);color:var(--text)}button,input,select{font:inherit;color:inherit}button{cursor:pointer}.app{max-width:1280px;margin:auto;padding:18px}.top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}.top h1{font-size:22px;margin:0 0 5px}.top p{margin:0;color:var(--muted);font-size:12px;line-height:1.5}.nav{display:flex;gap:8px;align-items:center}.btn,.linkbtn{display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);background:var(--panel2);border-radius:9px;padding:8px 11px;text-decoration:none;color:var(--text)}.btn.primary{background:var(--accent);border-color:var(--accent);color:#130d20;font-weight:800}.btn.good{background:#18382a;border-color:#2d6d4b;color:#c6f7d9}.btn.warn{background:#332810;border-color:#705b27;color:#ffe7a8}.btn:disabled{opacity:.5;cursor:wait}.layout{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(360px,.95fr);gap:12px}@media(max-width:980px){.layout{grid-template-columns:1fr}}.card{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:13px;margin-bottom:12px}.card h2{font-size:14px;margin:0 0 10px}.card h3{font-size:12px;color:var(--muted);margin:12px 0 7px}.grid{display:grid;gap:8px}.stateGrid{grid-template-columns:repeat(3,minmax(0,1fr))}@media(max-width:680px){.stateGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}label{font-size:10px;color:var(--muted);display:block}input,select{width:100%;margin-top:4px;background:#0d131b;border:1px solid var(--line);border-radius:8px;padding:8px;outline:none;font-variant-numeric:tabular-nums}input:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 2px #80c6ff2d}.inlineCheck{display:flex!important;align-items:center;gap:6px;margin-top:8px}.inlineCheck input{width:auto;margin:0}.summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:10px}@media(max-width:600px){.summary{grid-template-columns:repeat(2,minmax(0,1fr))}}.metric{background:#0e141c;border:1px solid var(--line);border-radius:9px;padding:8px}.metric span{display:block;color:var(--muted);font-size:9px}.metric b{display:block;margin-top:2px;font-size:15px;font-variant-numeric:tabular-nums}.metric b.gold{color:var(--gold)}.metric b.good{color:var(--good)}.ingotGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}@media(max-width:700px){.ingotGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}.ingotCard{background:#111821;border:1px solid var(--line);border-radius:9px;padding:8px}.ingotCard strong{font-size:11px;display:block;min-height:28px}.ingotCard .row{display:grid;grid-template-columns:70px 1fr;gap:7px;align-items:center;margin-top:4px}.ingotCard .effect{font-size:9px;color:var(--good);margin-top:4px}.ingotCard .cost{font-size:9px;color:var(--muted);margin-top:2px}.hero{border:1px solid #725aa6;background:linear-gradient(135deg,#211a31,#171522);padding:13px;border-radius:12px}.hero .tag{font-size:10px;color:#cab7f7}.hero .main{font-size:24px;font-weight:900;color:#d8c9ff;margin-top:3px}.hero .sub{font-size:11px;color:#c5badc;margin-top:4px;line-height:1.5}.coreGrid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-top:10px}@media(max-width:650px){.coreGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}.coreCell{background:#0f151d;border:1px solid var(--line);border-radius:8px;padding:8px}.coreCell span{display:block;color:var(--muted);font-size:9px}.coreCell b{font-size:16px;color:var(--gold)}.coreCell small{display:block;color:#b5c0cf;font-size:9px;margin-top:3px}.statusLine{font-size:10px;color:var(--muted);line-height:1.5;margin-top:8px}.ok{color:var(--good)}.warnText{color:var(--warn)}.bad{color:var(--bad)}.planTable{width:100%;border-collapse:collapse;font-size:10px}.planTable th,.planTable td{text-align:right;padding:6px 5px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}.planTable th:first-child,.planTable td:first-child{text-align:left}.planTable th{color:var(--muted);font-weight:600}.nextAction{padding:10px;border:1px solid #426b56;background:#102219;border-radius:9px;margin-bottom:8px}.nextAction b{color:#bdf4d0}.muted{color:var(--muted)}.small{font-size:10px;line-height:1.5}.actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}.calTable{width:100%;border-collapse:collapse;font-size:9px}.calTable th,.calTable td{padding:5px 4px;border-bottom:1px solid var(--line);text-align:right}.calTable th:first-child,.calTable td:first-child{text-align:left}.calAdd{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:8px}.calStats{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:8px}.pill{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:2px 7px;font-size:9px;margin-right:4px}.loading{display:none;color:var(--warn);font-size:11px}.loading.on{display:inline}.foot{font-size:9px;color:#718097;line-height:1.55;margin-top:8px}details summary{cursor:pointer;color:var(--muted);font-size:10px}.toast{min-height:18px;color:var(--good);font-size:10px;margin-top:6px}
+  </style>
+</head>
+<body>
+<main class="app">
+  <div class="top">
+    <div><h1>Ascension AFK Optimizer</h1><p>CoreのIngot倍率最大化を優先しつつ、残Core・Slowdown・Auto Prestige・Ingot Upgradeを同時最適化。EXP overflowと物理処理上限は実測で校正します。</p></div>
+    <div class="nav"><a class="linkbtn" href="./">通常Upgrade Optimizer</a><button class="btn primary" id="optimize">最適化</button></div>
+  </div>
+
+  <div class="layout">
+    <section>
+      <div class="card">
+        <h2>現在のAscension状態</h2>
+        <div class="grid stateGrid">
+          <label>Ascension回数<input id="ascension" type="number" min="0" step="1"></label>
+          <label>総Core ★<input id="totalCore" inputmode="decimal"></label>
+          <label>現在保有 ▲<input id="heldIngots" inputmode="decimal"></label>
+          <label>このAscensionの累積獲得▲<input id="totalEarned" inputmode="decimal"></label>
+          <label>このAscensionのPrestige回数<input id="prestigeCount" type="number" min="0" step="1"></label>
+          <label>探索する最大Auto Prestige Lv<input id="maxTarget" type="number" min="100" max="10000" step="100"></label>
+          <label>One-shot安全率 (DPS/最大Normal HP)<input id="oneShot" type="number" min="0" step="0.1"></label>
+          <label>DPSモデル補正<input id="dpsCalibration" type="number" min="0.000001" step="0.05"></label>
+        </div>
+        <label class="inlineCheck"><input id="coreAuto" type="checkbox">Ascension回数から総Coreを自動計算（Legacyなし: 3^A−1）</label>
+        <label class="inlineCheck"><input id="strictShot" type="checkbox">Auto Prestige目標までDPS/最大Normal HPが安全率未満になるCore構成を除外</label>
+        <div class="summary">
+          <div class="metric"><span>次Ascension必要▲</span><b class="gold" id="reqIngot">—</b></div>
+          <div class="metric"><span>Prestige最低残回数</span><b id="prestigeRemain">—</b></div>
+          <div class="metric"><span>Core Ingot絶対最大</span><b id="maxCoreIngot">—</b></div>
+          <div class="metric"><span>校正データ</span><b id="calCount">—</b></div>
+        </div>
+        <div class="actions"><button class="btn good" id="resetAscension">Ascension直後へリセット</button><button class="btn" id="setCurrentKnown">現在のA7実測状態をセット</button><span class="loading" id="loading">探索中…</span></div>
+      </div>
+
+      <div class="card">
+        <h2>Ingot Upgrade 現在Lv</h2>
+        <div class="ingotGrid" id="ingotGrid"></div>
+        <div class="small muted" style="margin-top:8px">Ascensionで全てLv0へ戻ります。Gemは実装上1.0% capなのでOptimizerはLv10で止め、Stallはduration=0になるLv17で止めます。</div>
+      </div>
+
+      <div class="card">
+        <h2>Ingot Upgrade 購入計画</h2>
+        <div id="nextAction" class="nextAction muted">最適化すると、次に買うべきIngot Upgradeと最終目標Lvを表示します。</div>
+        <div class="summary">
+          <div class="metric"><span>計画上の総投資</span><b id="ingotSpend">—</b></div>
+          <div class="metric"><span>投資後Prestige目標</span><b id="ingotPlanTarget">—</b></div>
+          <div class="metric"><span>投資後1run</span><b id="ingotPlanCycle">—</b></div>
+          <div class="metric"><span>投資後▲/s</span><b id="ingotPlanRate">—</b></div>
+        </div>
+        <h3>最終目標Lv</h3><div class="ingotGrid" id="ingotTargetGrid"></div>
+        <h3>購入順</h3><div id="ingotSteps" class="small muted">—</div>
+        <div class="statusLine" id="futureCore"></div>
+      </div>
+    </section>
+
+    <aside>
+      <div class="card">
+        <h2>AFK最適構成</h2>
+        <div class="hero" id="hero"><div class="tag">まだ計算していません</div><div class="main">—</div><div class="sub">「最適化」を押してください。</div></div>
+        <div class="coreGrid" id="coreGrid"></div>
+        <div class="summary">
+          <div class="metric"><span>Slowdown</span><b class="good" id="resultSlow">—</b></div>
+          <div class="metric"><span>Auto Prestige</span><b class="good" id="resultLevel">—</b></div>
+          <div class="metric"><span>1run予測</span><b id="resultCycle">—</b></div>
+          <div class="metric"><span>1run獲得▲</span><b id="resultGain">—</b></div>
+          <div class="metric"><span>必要run数</span><b id="resultRuns">—</b></div>
+          <div class="metric"><span>次Ascension ETA</span><b class="gold" id="resultEta">—</b></div>
+          <div class="metric"><span>最悪DPS/HP</span><b id="resultShot">—</b></div>
+          <div class="metric"><span>目標Lv queue圧</span><b id="resultQueue">—</b></div>
+        </div>
+        <div class="statusLine" id="coreStatus"></div>
+      </div>
+
+      <div class="card">
+        <h2>実測校正</h2>
+        <div class="small muted">未知なのはUnity物理/contact throughputです。VRCWのEXP・HP・DPS・spawn式は固定し、実測時間から「最大terminal処理イベント/s」と固定overheadをfitします。構成が変わっても、その物理上限を相対モデルへ移します。</div>
+        <div class="calStats"><div class="metric"><span>物理処理cap</span><b id="calCap">—</b></div><div class="metric"><span>固定overhead</span><b id="calIntercept">—</b></div><div class="metric"><span>fit RMSE</span><b id="calRmse">—</b></div></div>
+        <div style="overflow:auto;margin-top:8px"><table class="calTable"><thead><tr><th>実測</th><th>Slow</th><th>Lv</th><th>秒</th><th></th></tr></thead><tbody id="measureRows"></tbody></table></div>
+        <h3>現在構成で実測を追加</h3>
+        <div class="calAdd"><label>Slowdown<input id="measureSlow" inputmode="decimal" value="2000"></label><label>Auto Prestige Lv<input id="measureLevel" type="number" value="695"></label><label>実測秒<input id="measureSeconds" inputmode="decimal" placeholder="51.21"></label></div>
+        <div class="actions"><button class="btn good" id="addMeasure">実測を追加</button><button class="btn" id="resetMeasures">既知4点へ戻す</button></div>
+        <div class="toast" id="toast"></div>
+        <details><summary>モデル上の扱い</summary><div class="foot">Level Up時はEXPが0へ全消去されるため、各ore eventの有効EXPを <code>min(1, oreEXP / requiredEXP)</code> として離散化しています。terminal supply、DPS/HP由来kill capacity、実測physical capの最小値を処理イベント率とし、Core候補はIngot倍率を最大 feasible levelに固定した後、収入/破壊/Cost/FeedのPareto frontierだけを探索します。Auto Prestigeは1秒pollを含めて次Ascensionまでの総残り時間が最小になるLvを選びます。</div></details>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<script src="ascension-model.js"></script>
+<script>
+(()=>{
+  'use strict';
+  const M=window.CrushAscensionOptimizer,$=id=>document.getElementById(id),KEY='crush-ascension-afk-optimizer-v1';
+  const fmt=M.formatNumber,clone=x=>JSON.parse(JSON.stringify(x));
+  const defaults={ascensionCount:7,totalCore:M.totalCoreForAscension(7),coreAuto:true,heldIngots:0,totalIngotsEarned:2e9,prestigeCount:0,maxTargetLevel:3000,oneShotMargin:1,strictOneShot:true,dpsCalibration:1,ingotLevels:M.DEFAULT_INGOT_LEVELS.slice(),measurements:clone(M.DEFAULT_MEASUREMENTS)};
+  let state=load(),worker=null,requestId=0,lastResult=null,lastIngotPlan=null,lastFutureResult=null;
+  function load(){try{return {...clone(defaults),...JSON.parse(localStorage.getItem(KEY)||'{}')}}catch{return clone(defaults)}}
+  function save(){localStorage.setItem(KEY,JSON.stringify(state))}
+  function num(v,f=0){const n=Number(String(v??'').replace(/,/g,''));return Number.isFinite(n)?n:f}
+  function seconds(s){s=num(s);if(!Number.isFinite(s))return '—';if(s<60)return `${s.toFixed(1)}s`;if(s<3600)return `${Math.floor(s/60)}m ${(s%60).toFixed(0)}s`;return `${Math.floor(s/3600)}h ${Math.floor((s%3600)/60)}m`}
+  function effectText(i,l){const e=M.ingotEffect(i,l);if(i===4||i===7)return `+${Number(e.toPrecision(4))}%`;if(i===6)return `duration ×${Number(e.toPrecision(4))}`;return `×${Number(e.toPrecision(5))}`}
+  function coreEffectText(i,l){const e=M.coreEffect(i,l);if(i===2)return `指数 ${e}`;if(i===3)return `Cost ×${e}`;return `×${fmt(e)}`}
+  function readState(){
+    state.ascensionCount=Math.max(0,Math.floor(num($('ascension').value,state.ascensionCount)));state.coreAuto=$('coreAuto').checked;
+    if(state.coreAuto){state.totalCore=M.totalCoreForAscension(state.ascensionCount);$('totalCore').value=state.totalCore;$('totalCore').disabled=true}else{$('totalCore').disabled=false;state.totalCore=Math.max(0,num($('totalCore').value,state.totalCore))}
+    state.heldIngots=Math.max(0,num($('heldIngots').value));state.totalIngotsEarned=Math.max(0,num($('totalEarned').value));state.prestigeCount=Math.max(0,Math.floor(num($('prestigeCount').value)));state.maxTargetLevel=Math.max(100,Math.floor(num($('maxTarget').value,2200)));state.oneShotMargin=Math.max(0,num($('oneShot').value,1));state.strictOneShot=$('strictShot').checked;state.dpsCalibration=Math.max(1e-9,num($('dpsCalibration').value,1));
+    state.ingotLevels=state.ingotLevels.map((_,i)=>Math.max(0,Math.floor(num($(`ingot${i}`).value))));save();renderDerived();renderIngotCards();
+  }
+  function renderInputs(){
+    $('ascension').value=state.ascensionCount;$('totalCore').value=state.totalCore;$('coreAuto').checked=!!state.coreAuto;$('totalCore').disabled=!!state.coreAuto;$('heldIngots').value=state.heldIngots;$('totalEarned').value=state.totalIngotsEarned;$('prestigeCount').value=state.prestigeCount;$('maxTarget').value=state.maxTargetLevel;$('oneShot').value=state.oneShotMargin;$('strictShot').checked=state.strictOneShot!==false;$('dpsCalibration').value=state.dpsCalibration;
+    renderIngotCards();renderDerived();renderMeasurements();
+  }
+  function renderDerived(){const req=M.nextAscensionRequirement(state.ascensionCount);$('reqIngot').textContent=fmt(req);$('prestigeRemain').textContent=Math.max(0,25-state.prestigeCount);$('maxCoreIngot').textContent=`Lv${M.maxCoreLevel(1,state.totalCore)} (×${fmt(M.coreEffect(1,M.maxCoreLevel(1,state.totalCore)))})`;$('calCount').textContent=`${state.measurements.length}点`}
+  function renderIngotCards(){
+    $('ingotGrid').innerHTML=M.INGOT.names.map((name,i)=>`<div class="ingotCard"><strong>${i+1}. ${name}</strong><div class="row"><span class="muted">Lv</span><input id="ingot${i}" type="number" min="0" step="1" value="${state.ingotLevels[i]}"></div><div class="effect">${effectText(i,state.ingotLevels[i])}</div><div class="cost">次: ${fmt(M.ingotNextCost(i,state.ingotLevels[i]))}▲</div></div>`).join('');
+    for(let i=0;i<8;i++)$(`ingot${i}`).addEventListener('change',()=>{readState();scheduleOptimize(150)});
+  }
+  function renderMeasurements(){
+    $('measureRows').innerHTML=state.measurements.map((m,i)=>`<tr><td>${m.label||`#${i+1}`}</td><td>×${fmt(m.slowdown)}</td><td>${m.targetLevel}</td><td>${num(m.seconds).toFixed(2)}</td><td><button class="btn" data-del="${i}" style="padding:2px 6px">×</button></td></tr>`).join('');
+    $('measureRows').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{state.measurements.splice(Number(b.dataset.del),1);save();renderMeasurements();renderDerived();optimize()});
+  }
+  function workerInstance(){if(worker)return worker;worker=new Worker('ascension-worker.js');worker.onmessage=e=>{const m=e.data||{};if(m.id!==requestId)return;$('optimize').disabled=false;$('loading').classList.remove('on');if(m.type==='error'){showToast(m.error,true);return}lastResult=m.result;lastIngotPlan=m.ingotPlan;lastFutureResult=m.futureResult;renderResult()};worker.onerror=e=>{showToast(e.message||'Worker error',true);$('optimize').disabled=false;$('loading').classList.remove('on')};return worker}
+  function optimize(){readState();requestId++;$('optimize').disabled=true;$('loading').classList.add('on');workerInstance().postMessage({type:'optimize',id:requestId,input:state,measurements:state.measurements,maxIngotSteps:96})}
+  let optimizeTimer=0;function scheduleOptimize(ms=250){clearTimeout(optimizeTimer);optimizeTimer=setTimeout(optimize,ms)}
+  function renderResult(){
+    const r=lastResult,p=r&&r.plan,cal=r&&r.calibration;$('calCap').textContent=cal?`${cal.physicalCap.toFixed(2)} events/s`:'—';$('calIntercept').textContent=cal?`${cal.intercept.toFixed(2)}s`:'—';$('calRmse').textContent=cal&&Number.isFinite(cal.rmse)?`${cal.rmse.toFixed(2)}s`:'—';
+    if(!p){$('hero').innerHTML='<div class="tag bad">条件を満たす構成なし</div><div class="main">探索失敗</div><div class="sub">One-shot安全率を下げるか、最大探索Lv/DPS補正を確認してください。</div>';return}
+    $('hero').innerHTML=`<div class="tag">Core Ingot Lv${r.selectedIngotLevel}${r.backedOff?`（絶対最大Lv${r.absoluteMaxIngotLevel}から${r.backedOff}段back-off）`:'＝絶対最大'}</div><div class="main">[${p.core.join(', ')}]</div><div class="sub">Slowdown ×${fmt(p.slowdown)} / Auto Prestige Lv${p.targetLevel}。次Ascensionまでの推定総時間を最小化したAFK構成です。</div>`;
+    $('coreGrid').innerHTML=p.core.map((l,i)=>`<div class="coreCell"><span>${i+1}. ${M.CORE_NAMES[i]}</span><b>Lv${l}</b><small>${coreEffectText(i,l)}</small><small>累積 ${fmt(M.coreCost(i,l))}★</small></div>`).join('');
+    $('resultSlow').textContent=`×${fmt(p.slowdown)}`;$('resultLevel').textContent=`Lv${p.targetLevel}`;$('resultCycle').textContent=seconds(p.seconds);$('resultGain').textContent=`${fmt(p.gain)}▲`;$('resultRuns').textContent=p.runs;$('resultEta').textContent=seconds(p.eta);$('resultShot').textContent=`×${fmt(p.oneShotRatio)} @Lv${p.worstOneShotLevel}`;$('resultQueue').textContent=`×${p.queuePressure.toFixed(2)}`;
+    const edge=p.targetLevel>=state.maxTargetLevel-2?'<span class="warnText"> Auto Prestige最適点が探索上限に接触しています。最大Lvを上げて再探索してください。</span>':'';
+    $('coreStatus').innerHTML=`使用Core <b>${fmt(p.coreUsed)}★</b> / 残り <b>${fmt(p.coreLeft)}★</b>。Pareto候補 ${p.frontierCount}構成を探索。${r.backedOff?'<span class="warnText">最大Ingot LvではOne-shot条件を満たせなかったため自動でback-offしました。</span>':'<span class="ok">Core Ingot倍率は設定可能な最大Lvを維持しています。</span>'}${edge}`;
+    renderIngotPlan();$('measureSlow').value=p.slowdown;$('measureLevel').value=p.targetLevel;
+  }
+  function groupSteps(steps){const out=[];for(const s of steps||[]){const last=out[out.length-1];if(last&&last.index===s.index&&last.to===s.level-1){last.to=s.level;last.cost+=s.cost;last.improvement=1-(1-last.improvement)*(1-s.improvement)}else out.push({index:s.index,name:s.name,from:s.level-1,to:s.level,cost:s.cost,improvement:s.improvement})}return out}
+  function renderIngotPlan(){const q=lastIngotPlan;if(!q)return;const groups=groupSteps(q.steps);$('ingotSpend').textContent=`${fmt(q.spent)}▲`;$('ingotPlanTarget').textContent=q.finalTargetLevel?`Lv${q.finalTargetLevel}`:'—';$('ingotPlanCycle').textContent=q.finalCycleSeconds?seconds(q.finalCycleSeconds):'—';$('ingotPlanRate').textContent=q.finalRate?fmt(q.finalRate):'—';
+    $('ingotTargetGrid').innerHTML=q.targetLevels.map((l,i)=>`<div class="ingotCard"><strong>${i+1}. ${M.INGOT.names[i]}</strong><div class="effect">Lv${l} / ${effectText(i,l)}</div><div class="cost">累積 ${fmt(M.ingotCumulativeCost(i,l))}▲</div></div>`).join('');
+    const future=lastFutureResult&&lastFutureResult.plan;$('futureCore').innerHTML=future?`<span class="pill">計画完了後</span> Core <b>[${future.core.join(', ')}]</b> / Slowdown <b>×${fmt(future.slowdown)}</b> / Auto Prestige <b>Lv${future.targetLevel}</b> に再計算されます。`:'';
+    if(!groups.length){$('nextAction').innerHTML='<b>追加投資なし</b><div class="small">現在のIngot Upgrade状態では、次Ascensionまで▲を温存する方が速い判定です。</div>';$('ingotSteps').textContent='現在Lvを維持';return}
+    const first=groups[0];$('nextAction').innerHTML=`<b>次: ${first.name} Lv${first.from} → Lv${first.to}</b><div class="small">このまとまりの費用 ${fmt(first.cost)}▲。買える段階で購入し、その後も表の順に進めます。</div>`;
+    $('ingotSteps').innerHTML=`<table class="planTable"><thead><tr><th>Upgrade</th><th>Lv</th><th>費用</th><th>ETA改善</th></tr></thead><tbody>${groups.map(g=>`<tr><td>${g.name}</td><td>${g.from}→${g.to}</td><td>${fmt(g.cost)}▲</td><td>${(g.improvement*100).toFixed(1)}%</td></tr>`).join('')}</tbody></table>`;
+  }
+  function showToast(t,bad=false){$('toast').textContent=t;$('toast').className='toast '+(bad?'bad':'')}
+
+  $('optimize').onclick=optimize;$('resetAscension').onclick=()=>{readState();state.heldIngots=0;state.totalIngotsEarned=0;state.prestigeCount=0;state.ingotLevels=Array(8).fill(0);if(state.coreAuto)state.totalCore=M.totalCoreForAscension(state.ascensionCount);save();renderInputs();optimize()};
+  $('setCurrentKnown').onclick=()=>{state={...state,ascensionCount:7,totalCore:2186,coreAuto:true,heldIngots:0,totalIngotsEarned:2e9,prestigeCount:0,maxTargetLevel:3000,ingotLevels:M.DEFAULT_INGOT_LEVELS.slice()};save();renderInputs();optimize()};
+  $('resetMeasures').onclick=()=>{state.measurements=clone(M.DEFAULT_MEASUREMENTS);save();renderMeasurements();renderDerived();optimize()};
+  $('addMeasure').onclick=()=>{readState();if(!lastResult||!lastResult.plan){showToast('先に最適化して現在Core構成を確定してください。',true);return}const sec=num($('measureSeconds').value),lv=Math.floor(num($('measureLevel').value)),slow=num($('measureSlow').value);if(!(sec>0&&lv>=50&&slow>=1)){showToast('Slowdown / Lv / 秒を確認してください。',true);return}state.measurements.push({targetLevel:lv,seconds:sec,slowdown:slow,core:lastResult.plan.core.slice(),ingot:state.ingotLevels.slice(),totalIngotsEarned:state.totalIngotsEarned,dpsCalibration:state.dpsCalibration,label:`A${state.ascensionCount} ×${fmt(slow)} Lv${lv}`});save();$('measureSeconds').value='';renderMeasurements();renderDerived();showToast('実測を追加しました。再fitします。');optimize()};
+  for(const id of ['ascension','totalCore','heldIngots','totalEarned','prestigeCount','maxTarget','oneShot','dpsCalibration'])$(id).addEventListener('change',()=>{readState();scheduleOptimize(180)});$('coreAuto').onchange=()=>{readState();renderInputs();scheduleOptimize(100)};$('strictShot').onchange=()=>{readState();scheduleOptimize(100)};
+  renderInputs();optimize();
+})();
+</script>
+</body>
+</html>
