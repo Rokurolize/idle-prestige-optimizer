@@ -8,10 +8,16 @@
   // CRUSH FACTORY IDLE v1.0.4 / VRCW asset 71.
   // Deterministic constants are copied from the serialized GameBalanceConfig.
   const TERMINAL_ORES_PER_TOP=4.78640776699;
-  const BASE_GAME_DPS=0.73245; // existing site's displayed-DPS normalization; user calibration remains available.
+  const MAX_TOP_SPAWN_RATE=20;
   const AUTO_PRESTIGE_INTERVAL=1;
+  const NORMAL_AUTO_UNLOCK_COST=300;
+  const OUTER_DAMAGE_FACTOR=.55;
+  const ORE_MAX_CRUSH_SECONDS=30;
+  const EARLY_ORE_VALUE=[.34362900744795793,.7815852169404028,1.3105059329561746,1.8874439058471755,2.6336507240647125,4.334184788359374,6.739939118696889,8.64958853566101,12.614196244526408,17.902398308642,22.353805455655674,29.87797330570841,36.47543009067704,44.98144004030895,54.27695961817204,71.38908553339408,83.15713010178953,98.80675152551989,121.69951279637111,155.74190634993846,179.04792344125858,226.8861523027345,274.21650214110684,338.40610263604486,391.76187426309815,478.9543738264224,544.5730505335307,647.0168185774196,836.2705248334939,1128.965208525217];
+  const EARLY_ORE_HP=[3.1817500689625735,6.700833478569984,10.403218616288283,13.873276162764121,17.9241842965422,27.312716109228543,39.32689740411166,46.73103549562652,63.102386425178636,82.92274317661239,95.87164000899627,118.64954280154458,134.11939945868374,153.14427918138173,171.10361290397313,208.37793555095277,224.74790357817605,247.26293639376246,281.99245297401126,334.1414682506974,355.68899086797006,417.335538934803,467.0326151928781,533.664181259924,572.0424810465383,647.5547612500976,681.733675505318,749.9812678778437,897.5484077181289,1121.9355096476613];
 
   const NORMAL={
+    names:['回転速度','破砕力','減速比','レア鉱石率','重力','スパイク数','スパイクサイズ','供給速度'],
     baseCost:[50,14,75000,50000,3000,1200,1500,400],
     costRate:[1.2,1.73,1.58,2,2,1.45,1.25,1.4],
     base:[10,2,1,0,9.81,4,1,1],
@@ -88,12 +94,19 @@
   function ingotBundleCost(levels){return levels.reduce((s,l,i)=>s+ingotCumulativeCost(i,l),0)}
   function normalEffect(index,level){level=Math.max(0,Math.floor(finite(level)));return NORMAL.base[index]+NORMAL.per[index]*level+NORMAL.per[index]*NORMAL.quad[index]*level*level}
   function requiredExp(level){let r=8*Math.pow(1.36,level);if(level<10)r/=5-.4*level;return r}
+  function baseOreValue(level){level=Math.max(1,Math.floor(finite(level,1)));return level<=EARLY_ORE_VALUE.length?EARLY_ORE_VALUE[level-1]:.13888888888888887*Math.pow(1.35,level)}
+  function baseOreHp(level){level=Math.max(1,Math.floor(finite(level,1)));return level<=EARLY_ORE_HP.length?EARLY_ORE_HP[level-1]:1.3888888888888888*Math.pow(1.25,level)}
+  function expectedTerminalPerTop(level){
+    level=Math.max(1,Math.floor(finite(level,1)));const w=[.45,.4,.18],unlocked=[true,level>=5,level>=15];let total=0,expected=0;
+    for(let i=0;i<3;i++)if(unlocked[i]){total+=w[i];expected+=w[i]*Math.pow(4,i)}
+    return total>0?expected/total:1;
+  }
   function prestigeBase(level){if(level<50)return 0;return level-49+(level>100?.6*Math.pow(level-100,2):0)}
   function prestigeGain(level,coreIngotLevel){return Math.max(level>=50?1:0,Math.floor(prestigeBase(level)*coreEffect(1,coreIngotLevel)))}
   function prestigePermanent(totalEarned){return 1+.1*Math.sqrt(Math.max(0,finite(totalEarned)))}
 
-  function buyNormalAuto(cash,levels,gameLevel,costReduction){
-    let guard=0;
+  function buyNormalAutoLimited(cash,levels,gameLevel,costReduction,limit=Infinity){
+    let guard=0,bought=0;
     for(;;){
       let best=-1,bestCost=Infinity;
       for(let i=0;i<8;i++){
@@ -101,10 +114,11 @@
         const c=Math.ceil(NORMAL.baseCost[i]*Math.pow(NORMAL.costRate[i],levels[i])*costReduction);
         if(c<bestCost){bestCost=c;best=i}
       }
-      if(best<0||bestCost>cash||++guard>5000)return cash;
-      cash-=bestCost;levels[best]++;
+      if(best<0||bestCost>cash||bought>=limit||++guard>5000)return {cash,bought};
+      cash-=bestCost;levels[best]++;bought++;
     }
   }
+  function buyNormalAuto(cash,levels,gameLevel,costReduction){return buyNormalAutoLimited(cash,levels,gameLevel,costReduction).cash}
 
   function rarityState(normalLevels,ingotLevels){
     const r=clamp(.005*normalLevels[3],0,1),g=ingotEffect(4,ingotLevels[4])/100,o=ingotEffect(7,ingotLevels[7])/100;
@@ -113,6 +127,26 @@
       pRare:(1-g)*r*(1-o),
       pGem:g,
       pOri:(1-g)*r*o
+    };
+  }
+
+  function topSpawnRate(coreLevels,ingotLevels,normalFeed,slowdown){
+    const effectiveRate=Math.max(.01,Math.max(0,finite(normalFeed,1))*ingotEffect(3,ingotLevels[3])*coreEffect(4,coreLevels[4])/Math.max(1,finite(slowdown,1)));
+    const raw=.6*effectiveRate;
+    return {raw,actual:Math.min(MAX_TOP_SPAWN_RATE,raw)};
+  }
+
+  function expectedUsefulExpPerTerminal(level,slowdown,normalRareLevel,ingotLevels){
+    const rarity=rarityState([0,0,0,normalRareLevel,0,0,0,0],ingotLevels);
+    const req=requiredExp(level),baseValue=baseOreValue(level)*Math.max(1,finite(slowdown,1));
+    const expMult=ingotEffect(1,ingotLevels[1]),rareValue=ingotEffect(5,ingotLevels[5]);
+    const workNormal=Math.min(1,baseValue*.125*expMult/req);
+    const workRare=Math.min(1,baseValue*10*rareValue*.125*expMult/req);
+    const workGem=Math.min(1,baseValue*20*rareValue*.125*expMult/req);
+    const workOri=Math.min(1,baseValue*200*rareValue*.125*expMult/req);
+    return {
+      useful:rarity.pNormal*workNormal+rarity.pRare*workRare+rarity.pGem*workGem+rarity.pOri*workOri,
+      workNormal,workRare,workGem,workOri,rarity
     };
   }
 
@@ -126,7 +160,12 @@
     const hitsPerSec=(rpm/60)*spikes*Math.pow(gravity/9.81,.7);
     const prestige=prestigePermanent(totalEarned);
     const damageBase=power*Math.pow(reducer,2.26)*ingotEffect(2,ingotLevels[2])*prestige;
-    return Math.log10(BASE_GAME_DPS*Math.max(1e-12,dpsCalibration))+Math.log10(Math.max(1e-30,hitsPerSec))+coreEffect(2,coreLevels[2])*Math.log10(Math.max(1e-30,damageBase));
+    return Math.log10(OUTER_DAMAGE_FACTOR*Math.max(1e-300,dpsCalibration))+Math.log10(Math.max(1e-300,hitsPerSec))+coreEffect(2,coreLevels[2])*Math.log10(Math.max(1e-300,damageBase));
+  }
+
+  function softCapHpLog(hpLog,capLog){
+    const d=hpLog-capLog;if(!(d>0))return hpLog;if(d>12)return hpLog+Math.log10(.5);
+    return capLog+Math.log10(1+.5*(Math.pow(10,d)-1));
   }
 
   function simulateCurve(opts){
@@ -134,37 +173,40 @@
     const core=(opts.core||DEFAULT_CORE).map(x=>Math.max(0,Math.floor(finite(x))));
     const ingot=(opts.ingot||DEFAULT_INGOT_LEVELS).map(x=>Math.max(0,Math.floor(finite(x))));
     const slowdown=Math.max(1,finite(opts.slowdown,1));
-    const physicalCap=Math.max(.05,finite(opts.physicalCap,17));
+    const physicalCap=Math.max(.05,finite(opts.physicalCap,11));
     const totalEarned=Math.max(0,finite(opts.totalIngotsEarned,0));
-    const dpsCalibration=Math.max(1e-9,finite(opts.dpsCalibration,1));
+    const dpsCalibration=Math.max(1e-300,finite(opts.dpsCalibration,1)),hpCalibration=Math.max(1e-300,finite(opts.hpCalibration,1));
     const costReduction=coreEffect(3,core[3]),coreFeed=coreEffect(4,core[4]);
     const ingotFeed=ingotEffect(3,ingot[3]),expMult=ingotEffect(1,ingot[1]),refining=ingotEffect(0,ingot[0]),coreIncome=coreEffect(0,core[0]);
-    const prestige=prestigePermanent(totalEarned),normalLevels=[0,0,0,0,0,0,0,0];
-    const times=new Float64Array(target+1),minOneShot=new Float64Array(target+1),worstOneShotLevel=new Int32Array(target+1),queuePressure=new Float64Array(target+1),normalAtTarget=[];
-    let cash=0,rawSeconds=0,minShot=Infinity,worst=1,lastPressure=0;
+    const prestige=prestigePermanent(totalEarned),normalAutoEnabled=opts.normalAutoEnabled!==false,manualMode=opts.normalAutoMode==='manual',manualClickRate=Math.max(.1,finite(opts.manualClickRate,4)),manualCal=opts.manualCalibration||null,normalLevels=[0,0,0,0,0,0,0,0];
+    const times=new Float64Array(target+1),minOneShot=new Float64Array(target+1),worstOneShotLevel=new Int32Array(target+1),queuePressure=new Float64Array(target+1),topSpawnRates=new Float64Array(target+1),rawTopSpawnRates=new Float64Array(target+1),contactRates=new Float64Array(target+1),normalAtTarget=[];
+    let cash=0,rawSeconds=0,minShot=Infinity,worst=1,lastPressure=0,lastTopSpawn=0,lastRawTopSpawn=0,lastContactRate=0,lastDpsLog=-Infinity,lastHpSmallLog=-Infinity,lastHpLargeLog=-Infinity,manualClicks=0;
     times[1]=0;minOneShot[1]=Infinity;
     for(let L=1;L<target;L++){
-      cash=buyNormalAuto(cash,normalLevels,L,costReduction);
+      if(normalAutoEnabled){
+        if(manualMode){
+          const elapsed=manualCal?calibratedSeconds(rawSeconds,manualCal):rawSeconds,available=Math.max(0,Math.floor(elapsed*manualClickRate)-manualClicks),buy=buyNormalAutoLimited(cash,normalLevels,L,costReduction,available);cash=buy.cash;manualClicks+=buy.bought;
+        }else cash=buyNormalAuto(cash,normalLevels,L,costReduction);
+      }
       const feed=normalEffect(7,normalLevels[7]);
-      const topSpawn=.6*feed*ingotFeed*coreFeed/slowdown;
-      const terminalSupply=topSpawn*TERMINAL_ORES_PER_TOP;
+      const spawn=topSpawnRate(core,ingot,feed,slowdown),topSpawn=spawn.actual;
+      const terminalPerTop=expectedTerminalPerTop(L),terminalSupply=topSpawn*terminalPerTop;
       const dpsLog=dpsLog10(normalLevels,ingot,core,totalEarned,dpsCalibration);
-      const hpSmallLog=Math.log10(1.3888888888888888)+L*Math.log10(1.25)+Math.log10(slowdown);
+      const rawHpSmallLog=Math.log10(baseOreHp(L)),capHpSmallLog=dpsLog+Math.log10(ORE_MAX_CRUSH_SECONDS),hpSmallLog=softCapHpLog(rawHpSmallLog,capHpSmallLog)+Math.log10(slowdown)+Math.log10(hpCalibration);
       const rarity=rarityState(normalLevels,ingot),avgOriHp=1+4*rarity.pOri;
       const dpsKillRate=pow10(dpsLog-hpSmallLog)/avgOriHp;
-      const processed=Math.max(1e-12,Math.min(terminalSupply,physicalCap,dpsKillRate));
-      const req=requiredExp(L),baseValue=.13888888888888887*Math.pow(1.35,L)*slowdown,rareValue=ingotEffect(5,ingot[5]);
-      const workNormal=Math.min(1,baseValue*.125*expMult/req);
-      const workRare=Math.min(1,baseValue*10*rareValue*.125*expMult/req);
-      const workGem=Math.min(1,baseValue*20*rareValue*.125*expMult/req);
-      const workOri=Math.min(1,baseValue*200*rareValue*.125*expMult/req);
-      const useful=rarity.pNormal*workNormal+rarity.pRare*workRare+rarity.pGem*workGem+rarity.pOri*workOri;
+      const contactRate=physicalCap*terminalSupply/(physicalCap+terminalSupply);
+      const processed=Math.max(1e-12,Math.min(contactRate,dpsKillRate));
+      const req=requiredExp(L),useful=expectedUsefulExpPerTerminal(L,slowdown,normalLevels[3],ingot).useful;
       rawSeconds+=1/Math.max(1e-12,processed*useful);
       times[L+1]=rawSeconds;
       const tier=L>=15?2:(L>=5?1:0),hpLargestNormalLog=hpSmallLog+tier*Math.log10(1.7),shot=pow10(dpsLog-hpLargestNormalLog);
       if(shot<minShot){minShot=shot;worst=L}
       minOneShot[L+1]=minShot;worstOneShotLevel[L+1]=worst;
-      lastPressure=terminalSupply/Math.max(1e-12,Math.min(physicalCap,dpsKillRate));queuePressure[L+1]=lastPressure;
+      lastPressure=terminalSupply/Math.max(1e-12,Math.min(contactRate,dpsKillRate));queuePressure[L+1]=lastPressure;
+      lastTopSpawn=topSpawn;lastRawTopSpawn=spawn.raw;lastContactRate=contactRate;
+      topSpawnRates[L+1]=topSpawn;rawTopSpawnRates[L+1]=spawn.raw;contactRates[L+1]=contactRate;
+      lastDpsLog=dpsLog;lastHpSmallLog=hpSmallLog;lastHpLargeLog=hpLargestNormalLog;
 
       // EXP is based on pre-income base value.  This is the cash represented by the
       // amount of base value required to fill the level, plus the exact level reward.
@@ -173,7 +215,19 @@
       cash+=baseValueNeeded*(prestige*refining*coreIncome)+2*req;
     }
     for(const n of normalLevels)normalAtTarget.push(n);
-    return {times,minOneShot,worstOneShotLevel,queuePressure,normalAtTarget,rawSeconds};
+    return {times,minOneShot,worstOneShotLevel,queuePressure,topSpawnRates,rawTopSpawnRates,contactRates,normalAtTarget,rawSeconds,manualClicks,topSpawnAtTarget:lastTopSpawn,rawTopSpawnAtTarget:lastRawTopSpawn,contactRateAtTarget:lastContactRate,dpsLogAtTarget:lastDpsLog,hpSmallLogAtTarget:lastHpSmallLog,hpLargeLogAtTarget:lastHpLargeLog};
+  }
+
+  function deriveDpsCalibration(observation,physicalCap=11){
+    const level=Math.max(1,Math.floor(finite(observation&&observation.level))),observedDps=Math.max(1e-300,finite(observation&&observation.dps));
+    const core=(observation&&observation.core||DEFAULT_CORE).map(x=>Math.max(0,Math.floor(finite(x))));
+    const ingot=(observation&&observation.ingot||DEFAULT_INGOT_LEVELS).map(x=>Math.max(0,Math.floor(finite(x))));
+    const slowdown=Math.max(1,finite(observation&&observation.slowdown,1)),totalIngotsEarned=Math.max(0,finite(observation&&observation.totalIngotsEarned,0));
+    const curve=simulateCurve({maxTarget:level+1,core,ingot,slowdown,physicalCap,totalIngotsEarned,dpsCalibration:1,hpCalibration:1});
+    const observedLog=Math.log10(observedDps),delta=observedLog-curve.dpsLogAtTarget,calibration=pow10(delta);
+    const observedHp=Math.max(0,finite(observation&&observation.hpSmall,0)),predictedHp=pow10(curve.hpSmallLogAtTarget);
+    const hpCalibration=observedHp>0?observedHp/Math.max(1e-300,predictedHp):1;
+    return {calibration,hpCalibration,level,predictedDps:pow10(curve.dpsLogAtTarget),observedDps,predictedHpSmall:predictedHp,observedHpSmall:observedHp,hpRatio:observedHp>0?predictedHp/observedHp:NaN,normalLevels:curve.normalAtTarget};
   }
 
   function linearFit(xs,ys){
@@ -187,15 +241,15 @@
 
   function fitCalibration(measurements){
     const rows=(measurements||[]).filter(m=>finite(m.targetLevel)>=50&&finite(m.seconds)>0&&finite(m.slowdown)>=1&&Array.isArray(m.core)&&Array.isArray(m.ingot));
-    if(rows.length<2)return {physicalCap:17,intercept:7,scale:1.115,rmse:NaN,count:rows.length,source:'default'};
+    if(rows.length<2)return {physicalCap:11,intercept:7,scale:.59,rmse:NaN,count:rows.length,source:'default'};
     let best=null;
-    // The user's A7 queue observation says ×2K is near saturation.  A dense search
-    // over the physically meaningful event-cap range lets measured route times set
-    // the unknown contact/Unity throughput instead of inventing it.
+    // The 20 top-ore/s spawn ceiling is exact.  This fitted value is instead the
+    // asymptote of an empirical contact/physics saturation curve for terminal ore
+    // events.  Supply above it still helps, with diminishing returns.
     for(let cap=4;cap<=60;cap+=.25){
       const xs=[],ys=[];
       for(const m of rows){
-        const curve=simulateCurve({maxTarget:Math.floor(m.targetLevel),core:m.core,ingot:m.ingot,slowdown:m.slowdown,physicalCap:cap,totalIngotsEarned:finite(m.totalIngotsEarned,0),dpsCalibration:finite(m.dpsCalibration,1)});
+        const curve=simulateCurve({maxTarget:Math.floor(m.targetLevel),core:m.core,ingot:m.ingot,slowdown:m.slowdown,physicalCap:cap,totalIngotsEarned:finite(m.totalIngotsEarned,0),dpsCalibration:finite(m.dpsCalibration,1),hpCalibration:finite(m.hpCalibration,1)});
         xs.push(curve.times[Math.floor(m.targetLevel)]);ys.push(finite(m.seconds));
       }
       const fit=linearFit(xs,ys),candidate={physicalCap:cap,...fit};
@@ -206,6 +260,67 @@
 
   function calibratedSeconds(raw,cal){return Math.max(.01,finite(cal.intercept,0)+Math.max(.01,finite(cal.scale,1))*raw)}
   function actualAutoCycle(seconds){return Math.max(AUTO_PRESTIGE_INTERVAL,Math.ceil(seconds/AUTO_PRESTIGE_INTERVAL)*AUTO_PRESTIGE_INTERVAL)}
+  function levelAtCalibratedTime(curve,cal,seconds){
+    let lo=1,hi=curve.times.length-1;
+    while(lo<hi){const mid=Math.ceil((lo+hi)/2);if(calibratedSeconds(curve.times[mid],cal)<=seconds)lo=mid;else hi=mid-1}
+    return lo;
+  }
+
+  function planNormalAutoBootstrap(input,core,ingot,cal,slowdown){
+    const held=Math.max(0,finite(input.heldIngots)),totalEarned=Math.max(0,finite(input.totalIngotsEarned)),pcount=Math.max(0,Math.floor(finite(input.prestigeCount)));
+    const basePost={...input,normalAutoUnlocked:true};
+    if(input.normalAutoUnlocked!==false)return {needed:false,prestigePerformed:false,seconds:0,gain:0,cost:0,postState:basePost};
+    if(held>=NORMAL_AUTO_UNLOCK_COST){
+      return {needed:true,prestigePerformed:false,seconds:0,gain:0,cost:NORMAL_AUTO_UNLOCK_COST,heldBefore:held,heldAfter:held-NORMAL_AUTO_UNLOCK_COST,postState:{...basePost,heldIngots:held-NORMAL_AUTO_UNLOCK_COST,totalIngotsEarned:totalEarned,prestigeCount:pcount}};
+    }
+    const maxTarget=Math.max(100,Math.floor(finite(input.maxTargetLevel,2200))),needed=NORMAL_AUTO_UNLOCK_COST-held;
+    let guaranteedLevel=50;while(guaranteedLevel<maxTarget&&prestigeGain(guaranteedLevel,core[1])<needed)guaranteedLevel++;
+    if(prestigeGain(guaranteedLevel,core[1])<needed)return null;
+    const slowdowns=slowdown==null?[...new Set([...slowdownCandidates(core,ingot,cal.physicalCap,1),...slowdownCandidates(core,ingot,cal.physicalCap,4)])].sort((a,b)=>a-b):[Math.max(1,finite(slowdown,1))];
+    // Before the 300▲ unlock the user is present and manually buys normal
+    // upgrades.  One-shot is not a hard requirement here; actual DPS/HP kill
+    // throughput is already part of simulateCurve.
+    let best=null;
+    for(const bootSlowdown of slowdowns){
+      // Bootstrap is normally Lv50 in the progressed game.  Avoid simulating the
+      // full steady-state target for every Core candidate: extend only far enough
+      // to resolve the 1-second Auto Prestige poll overshoot exactly.
+      let curve,end=Math.min(maxTarget,Math.max(128,guaranteedLevel+64));
+      for(;;){
+        curve=simulateCurve({maxTarget:end,core,ingot,slowdown:bootSlowdown,physicalCap:cal.physicalCap,totalIngotsEarned:totalEarned,dpsCalibration:input.dpsCalibration,hpCalibration:input.hpCalibration,normalAutoEnabled:true,normalAutoMode:'manual',manualClickRate:input.manualClickRate,manualCalibration:cal});
+        const latestPoll=actualAutoCycle(calibratedSeconds(curve.times[Math.min(guaranteedLevel,end)],cal));
+        if(end>=maxTarget||calibratedSeconds(curve.times[end],cal)>latestPoll)break;
+        end=Math.min(maxTarget,Math.max(end+64,end*2));
+      }
+      for(let L=50;L<=guaranteedLevel;L++){
+        const configuredReach=calibratedSeconds(curve.times[L],cal),seconds=actualAutoCycle(configuredReach),actualLevel=levelAtCalibratedTime(curve,cal,seconds);
+        const shot=curve.minOneShot[actualLevel];
+        const gain=prestigeGain(actualLevel,core[1]);if(gain<needed)continue;
+        const manualCurve=simulateCurve({maxTarget:actualLevel+1,core,ingot,slowdown:bootSlowdown,physicalCap:cal.physicalCap,totalIngotsEarned:totalEarned,dpsCalibration:input.dpsCalibration,hpCalibration:input.hpCalibration,normalAutoEnabled:true,normalAutoMode:'manual',manualClickRate:input.manualClickRate,manualCalibration:cal});
+        const manualNormalLevels=manualCurve.normalAtTarget.slice(),manualPurchases=manualCurve.manualClicks;
+        const row={needed:true,prestigePerformed:true,manualNormalPurchases:true,manualNormalLevels,manualPurchases,core:core.slice(),slowdown:bootSlowdown,targetLevel:L,actualPrestigeLevel:actualLevel,configuredReachSeconds:configuredReach,seconds,gain,cost:NORMAL_AUTO_UNLOCK_COST,heldBefore:held,heldAfter:held+gain-NORMAL_AUTO_UNLOCK_COST,oneShotRatio:shot,worstOneShotLevel:curve.worstOneShotLevel[actualLevel]};
+        if(!best||row.seconds<best.seconds-1e-9||(Math.abs(row.seconds-best.seconds)<1e-9&&row.targetLevel<best.targetLevel))best=row;
+      }
+    }
+    if(!best)return null;
+    best.postState={...basePost,heldIngots:best.heldAfter,totalIngotsEarned:totalEarned+best.gain,prestigeCount:pcount+1};
+    return best;
+  }
+
+  function optimizeNormalAutoBootstrap(input,totalCore,ingot,cal){
+    if(input.normalAutoUnlocked!==false||Math.max(0,finite(input.heldIngots))>=NORMAL_AUTO_UNLOCK_COST){
+      return planNormalAutoBootstrap(input,[0,0,0,0,0],ingot,cal,1);
+    }
+    let best=null;const absoluteMax=maxCoreLevel(1,totalCore);
+    for(let il=0;il<=absoluteMax;il++){
+      for(const cand of paretoCoreCandidates(totalCore,il)){
+        const b=planNormalAutoBootstrap(input,cand.core,ingot,cal);
+        if(!b)continue;b.coreUsed=cand.used;b.coreLeft=cand.left;
+        if(!best||b.seconds<best.seconds-1e-9||(Math.abs(b.seconds-best.seconds)<1e-9&&b.manualPurchases<best.manualPurchases))best=b;
+      }
+    }
+    return best;
+  }
 
   function dominates(a,b){
     const ae=[coreEffect(0,a.core[0]),coreEffect(2,a.core[2]),coreEffect(3,a.core[3]),coreEffect(4,a.core[4])],be=[coreEffect(0,b.core[0]),coreEffect(2,b.core[2]),coreEffect(3,b.core[3]),coreEffect(4,b.core[4])];
@@ -236,10 +351,12 @@
     for(let i=0;i<SLOWDOWN.length;i++){const d=Math.abs(Math.log(SLOWDOWN[i])-Math.log(value));if(d<bestD){bestD=d;best=i}}
     return best;
   }
-  function slowdownCandidates(core,ingot,physicalCap){
-    const numerator=.6*4*ingotEffect(3,ingot[3])*coreEffect(4,core[4])*TERMINAL_ORES_PER_TOP;
-    const balance=numerator/Math.max(.1,physicalCap*1.05),idx=nearestSlowdownIndex(balance),set=new Set([1]);
-    for(let d=-6;d<=5;d++){const i=idx+d;if(i>=0&&i<SLOWDOWN.length)set.add(SLOWDOWN[i])}
+  function slowdownCandidates(core,ingot,physicalCap,normalFeed=4){
+    const topNumerator=.6*Math.max(1e-12,finite(normalFeed,4))*ingotEffect(3,ingot[3])*coreEffect(4,core[4]);
+    const spawnBoundary=topNumerator/MAX_TOP_SPAWN_RATE;
+    const contactBoundary=topNumerator*TERMINAL_ORES_PER_TOP/Math.max(.1,physicalCap);
+    const indices=[nearestSlowdownIndex(spawnBoundary),nearestSlowdownIndex(contactBoundary)],set=new Set([1]);
+    for(const idx of indices)for(let d=-6;d<=5;d++){const i=idx+d;if(i>=0&&i<SLOWDOWN.length)set.add(SLOWDOWN[i])}
     return [...set].sort((a,b)=>a-b);
   }
 
@@ -247,10 +364,11 @@
     const req=Math.max(0,finite(input.nextRequirement)),held=Math.max(0,finite(input.heldIngots)),pcount=Math.max(0,Math.floor(finite(input.prestigeCount))),oneShot=Math.max(0,finite(input.oneShotMargin,1)),strict=input.strictOneShot!==false;
     const maxTarget=curve.times.length-1;let best=null;
     for(let L=50;L<=maxTarget;L++){
-      const shot=curve.minOneShot[L];if(strict&&shot<oneShot)continue;
-      const seconds=actualAutoCycle(calibratedSeconds(curve.times[L],cal)),gain=prestigeGain(L,core[1]);if(!(gain>0))continue;
+      const configuredReach=calibratedSeconds(curve.times[L],cal),seconds=actualAutoCycle(configuredReach),actualLevel=levelAtCalibratedTime(curve,cal,seconds);
+      const shot=curve.minOneShot[actualLevel];if(strict&&shot<oneShot)continue;
+      const gain=prestigeGain(actualLevel,core[1]);if(!(gain>0))continue;
       const byIngots=req<=held?0:Math.ceil((req-held)/gain),byPrestige=Math.max(0,25-pcount),runs=Math.max(byIngots,byPrestige),eta=runs*seconds,rate=gain/seconds;
-      const row={targetLevel:L,seconds,gain,runs,eta,rate,oneShotRatio:shot,worstOneShotLevel:curve.worstOneShotLevel[L],queuePressure:curve.queuePressure[L]};
+      const row={targetLevel:L,actualPrestigeLevel:actualLevel,configuredReachSeconds:configuredReach,seconds,gain,runs,eta,rate,oneShotRatio:shot,worstOneShotLevel:curve.worstOneShotLevel[actualLevel],queuePressure:curve.queuePressure[actualLevel]};
       if(!best||row.eta<best.eta-1e-9||(Math.abs(row.eta-best.eta)<1e-9&&row.rate>best.rate))best=row;
     }
     return best;
@@ -259,8 +377,9 @@
   function optimizeFixedCore(input,core,ingot,cal,slowdowns){
     let best=null;const maxTarget=Math.max(100,Math.floor(finite(input.maxTargetLevel,2200)));
     for(const slowdown of slowdowns||slowdownCandidates(core,ingot,cal.physicalCap)){
-      const curve=simulateCurve({maxTarget,core,ingot,slowdown,physicalCap:cal.physicalCap,totalIngotsEarned:input.totalIngotsEarned,dpsCalibration:input.dpsCalibration});
-      const ev=evaluateCurve(curve,core,cal,input);if(!ev)continue;const row={core:core.slice(),ingot:ingot.slice(),slowdown,...ev,normalAtTarget:curve.normalAtTarget};
+      const curve=simulateCurve({maxTarget,core,ingot,slowdown,physicalCap:cal.physicalCap,totalIngotsEarned:input.totalIngotsEarned,dpsCalibration:input.dpsCalibration,hpCalibration:input.hpCalibration,normalAutoEnabled:true});
+      const ev=evaluateCurve(curve,core,cal,input);if(!ev)continue;const actual=ev.actualPrestigeLevel;
+      const row={core:core.slice(),ingot:ingot.slice(),slowdown,...ev,steadyRuns:ev.runs,bootstrapRuns:0,normalAtTarget:curve.normalAtTarget,topSpawnAtTarget:curve.topSpawnRates[actual],rawTopSpawnAtTarget:curve.rawTopSpawnRates[actual],contactRateAtTarget:curve.contactRates[actual]};
       if(!best||row.eta<best.eta-1e-9||(Math.abs(row.eta-best.eta)<1e-9&&row.rate>best.rate))best=row;
     }
     return best;
@@ -269,17 +388,31 @@
   function optimizeAscension(input,measurements){
     const a=Math.max(0,Math.floor(finite(input.ascensionCount,7))),totalCore=Math.max(0,finite(input.totalCore,totalCoreForAscension(a))),ingot=(input.ingotLevels||Array(8).fill(0)).map(x=>Math.max(0,Math.floor(finite(x))));
     const cal=fitCalibration(measurements),base={...input,ascensionCount:a,totalCore,nextRequirement:finite(input.nextRequirement,nextAscensionRequirement(a)),ingotLevels:ingot};
-    const absoluteMax=maxCoreLevel(1,totalCore);let selected=null,selectedFrontier=0,selectedIngotLevel=absoluteMax,backedOff=0;
-    for(let il=absoluteMax;il>=0&&!selected;il--){
-      const frontier=paretoCoreCandidates(totalCore,il);selectedFrontier=frontier.length;
-      for(const cand of frontier){
-        const row=optimizeFixedCore(base,cand.core,ingot,cal);
-        if(!row)continue;row.coreUsed=cand.used;row.coreLeft=cand.left;row.frontierCount=frontier.length;
-        if(!selected||row.eta<selected.eta-1e-9||(Math.abs(row.eta-selected.eta)<1e-9&&row.rate>selected.rate))selected=row;
+    const bootstrap=optimizeNormalAutoBootstrap(base,totalCore,ingot,cal);if(!bootstrap)return {plan:null,calibration:cal,ascensionCount:a,totalCore,nextRequirement:base.nextRequirement,strictFallback:false};
+    const steadyBase=bootstrap.postState||{...base,normalAutoUnlocked:true};
+    const absoluteMax=maxCoreLevel(1,totalCore);
+    function search(searchBase){
+      let selected=null,selectedFrontier=0,selectedIngotLevel=absoluteMax,backedOff=0;
+      for(let il=absoluteMax;il>=0&&!selected;il--){
+        const frontier=paretoCoreCandidates(totalCore,il);selectedFrontier=frontier.length;
+        for(const cand of frontier){
+          const row=optimizeFixedCore(searchBase,cand.core,ingot,cal);
+          if(!row)continue;row.coreUsed=cand.used;row.coreLeft=cand.left;row.frontierCount=frontier.length;
+          if(!selected||row.eta<selected.eta-1e-9||(Math.abs(row.eta-selected.eta)<1e-9&&row.rate>selected.rate))selected=row;
+        }
+        if(selected){selectedIngotLevel=il;backedOff=absoluteMax-il}
       }
-      if(selected){selectedIngotLevel=il;backedOff=absoluteMax-il}
+      return {selected,selectedFrontier,selectedIngotLevel,backedOff};
     }
-    return {plan:selected,calibration:cal,ascensionCount:a,totalCore,nextRequirement:base.nextRequirement,absoluteMaxIngotLevel:absoluteMax,selectedIngotLevel,backedOff,frontierCount:selectedFrontier};
+    let found=search(steadyBase),strictFallback=false;
+    if(!found.selected&&steadyBase.strictOneShot!==false){found=search({...steadyBase,strictOneShot:false});strictFallback=!!found.selected}
+    const {selected,selectedFrontier,selectedIngotLevel,backedOff}=found;
+    if(selected){
+      selected.bootstrap=bootstrap;selected.bootstrapRuns=bootstrap.prestigePerformed?1:0;selected.steadyRuns=selected.runs;selected.runs+=selected.bootstrapRuns;selected.eta+=bootstrap.seconds;
+      const same=(x,y)=>Array.isArray(x)&&Array.isArray(y)&&x.length===y.length&&x.every((v,i)=>Math.floor(finite(v))===Math.floor(finite(y[i])));
+      selected.slowdownValidated=(measurements||[]).some(m=>same(m.core,selected.core)&&same(m.ingot,selected.ingot)&&finite(m.slowdown)===selected.slowdown);
+    }
+    return {plan:selected,calibration:cal,ascensionCount:a,totalCore,nextRequirement:base.nextRequirement,absoluteMaxIngotLevel:absoluteMax,selectedIngotLevel,backedOff,frontierCount:selectedFrontier,strictFallback};
   }
 
   function etaContinuous(req,held,rate){return Math.max(0,req-held)/Math.max(1e-12,rate)}
@@ -287,7 +420,8 @@
   function optimizeIngotUpgrades(input,ascensionResult,measurements,maxSteps=64){
     const plan=ascensionResult&&ascensionResult.plan;if(!plan)return {steps:[],targetLevels:(input.ingotLevels||Array(8).fill(0)).slice(),spent:0};
     const cal=ascensionResult.calibration||fitCalibration(measurements),levels=(input.ingotLevels||Array(8).fill(0)).map(x=>Math.max(0,Math.floor(finite(x)))),req=ascensionResult.nextRequirement;
-    let held=Math.max(0,finite(input.heldIngots)),simWait=0,spent=0,current=optimizeFixedCore({...input,nextRequirement:req},plan.core,levels,cal,[plan.slowdown]),steps=[];
+    const postBootstrapInput=plan.bootstrap&&plan.bootstrap.postState?{...plan.bootstrap.postState,normalAutoUnlocked:true}:{...input,normalAutoUnlocked:true};
+    let held=Math.max(0,finite(postBootstrapInput.heldIngots)),simWait=0,spent=0,current=optimizeFixedCore({...postBootstrapInput,nextRequirement:req},plan.core,levels,cal,[plan.slowdown]),steps=[];
     if(!current)return {steps,targetLevels:levels,spent};
     for(let step=0;step<maxSteps;step++){
       const remaining=Math.max(0,req-held),baseEta=etaContinuous(req,held,current.rate);let best=null;
@@ -295,21 +429,21 @@
         if(!canOptimizeIngot(i,levels[i]))continue;
         const cost=ingotNextCost(i,levels[i]);if(!(cost>0)||cost>req*.45)continue;
         const next=levels.slice();next[i]++;
-        const candidate=optimizeFixedCore({...input,nextRequirement:req},plan.core,next,cal,[plan.slowdown]);if(!candidate)continue;
+        const candidate=optimizeFixedCore({...postBootstrapInput,nextRequirement:req},plan.core,next,cal,[plan.slowdown]);if(!candidate)continue;
         let eta;
         if(cost<=held)eta=etaContinuous(req,held-cost,candidate.rate);
         else eta=(cost-held)/Math.max(1e-12,current.rate)+req/Math.max(1e-12,candidate.rate);
         const improvement=(baseEta-eta)/Math.max(1e-9,baseEta);
-        if(improvement>.001&&(!best||eta<best.eta))best={index:i,cost,next,candidate,eta,improvement};
+        if(improvement>.001&&(!best||eta<best.eta))best={index:i,cost,next,candidate,eta,improvement,rateBefore:current.rate,rateAfter:candidate.rate};
       }
       if(!best)break;
       const buyAt=Math.max(best.cost,held),wait=best.cost<=held?0:(best.cost-held)/Math.max(1e-12,current.rate);
       simWait+=wait;if(best.cost<=held)held-=best.cost;else held=0;spent+=best.cost;
       levels[best.index]++;current=best.candidate;
-      steps.push({index:best.index,name:INGOT.names[best.index],level:levels[best.index],cost:best.cost,buyAt,waitSeconds:wait,improvement:best.improvement,effect:ingotEffect(best.index,levels[best.index]),targetLevel:current.targetLevel,rate:current.rate});
+      steps.push({index:best.index,name:INGOT.names[best.index],level:levels[best.index],cost:best.cost,buyAt,waitSeconds:wait,improvement:best.improvement,effect:ingotEffect(best.index,levels[best.index]),targetLevel:current.targetLevel,actualPrestigeLevel:current.actualPrestigeLevel,rate:current.rate,rateBefore:best.rateBefore,rateAfter:best.rateAfter,hourlyBefore:best.rateBefore*3600,hourlyAfter:best.rateAfter*3600});
       if(spent>req*.35)break;
     }
-    return {steps,targetLevels:levels.slice(),spent,simulatedWaitSeconds:simWait,finalRate:current.rate,finalTargetLevel:current.targetLevel,finalCycleSeconds:current.seconds};
+    return {steps,targetLevels:levels.slice(),spent,simulatedWaitSeconds:simWait,postBootstrapState:postBootstrapInput,finalRate:current.rate,finalTargetLevel:current.targetLevel,finalActualPrestigeLevel:current.actualPrestigeLevel,finalCycleSeconds:current.seconds};
   }
 
   function formatNumber(v){
@@ -317,8 +451,8 @@
   }
 
   return {
-    TERMINAL_ORES_PER_TOP,NORMAL,INGOT,CORE_NAMES,CORE_FEED,SLOWDOWN,ASCENSION_INGOT_REQ,DEFAULT_INGOT_LEVELS,DEFAULT_CORE,DEFAULT_MEASUREMENTS,
-    totalCoreForAscension,nextAscensionRequirement,coreCost,maxCoreLevel,coreEffect,coreBundleCost,ingotEffect,ingotNextCost,ingotCumulativeCost,ingotBundleCost,normalEffect,requiredExp,prestigeBase,prestigeGain,prestigePermanent,
-    simulateCurve,fitCalibration,paretoCoreCandidates,slowdownCandidates,optimizeFixedCore,optimizeAscension,optimizeIngotUpgrades,formatNumber
+    TERMINAL_ORES_PER_TOP,MAX_TOP_SPAWN_RATE,NORMAL_AUTO_UNLOCK_COST,OUTER_DAMAGE_FACTOR,ORE_MAX_CRUSH_SECONDS,EARLY_ORE_VALUE,EARLY_ORE_HP,NORMAL,INGOT,CORE_NAMES,CORE_FEED,SLOWDOWN,ASCENSION_INGOT_REQ,DEFAULT_INGOT_LEVELS,DEFAULT_CORE,DEFAULT_MEASUREMENTS,
+    totalCoreForAscension,nextAscensionRequirement,coreCost,maxCoreLevel,coreEffect,coreBundleCost,ingotEffect,ingotNextCost,ingotCumulativeCost,ingotBundleCost,normalEffect,requiredExp,baseOreValue,baseOreHp,expectedTerminalPerTop,prestigeBase,prestigeGain,prestigePermanent,
+    topSpawnRate,expectedUsefulExpPerTerminal,dpsLog10,softCapHpLog,simulateCurve,deriveDpsCalibration,fitCalibration,planNormalAutoBootstrap,optimizeNormalAutoBootstrap,paretoCoreCandidates,slowdownCandidates,optimizeFixedCore,optimizeAscension,optimizeIngotUpgrades,formatNumber
   };
 });

@@ -28,9 +28,11 @@
           <label>このAscensionのPrestige回数<input id="prestigeCount" type="number" min="0" step="1"></label>
           <label>探索する最大Auto Prestige Lv<input id="maxTarget" type="number" min="100" max="10000" step="100"></label>
           <label>One-shot安全率 (DPS/最大Normal HP)<input id="oneShot" type="number" min="0" step="0.1"></label>
-          <label>DPSモデル補正<input id="dpsCalibration" type="number" min="0.000001" step="0.05"></label>
+          <label>DPSモデル補正<input id="dpsCalibration" inputmode="decimal"></label>
+          <label>初回手動強化の購入速度 (click/s)<input id="manualClickRate" type="number" min="0.5" max="20" step="0.5"></label>
         </div>
         <label class="inlineCheck"><input id="coreAuto" type="checkbox">Ascension回数から総Coreを自動計算（Legacyなし: 3^A−1）</label>
+        <label class="inlineCheck"><input id="normalAutoUnlocked" type="checkbox">通常Upgrade Auto 解放済み（300▲支払済み）</label>
         <label class="inlineCheck"><input id="strictShot" type="checkbox">Auto Prestige目標までDPS/最大Normal HPが安全率未満になるCore構成を除外</label>
         <div class="summary">
           <div class="metric"><span>次Ascension必要▲</span><b class="gold" id="reqIngot">—</b></div>
@@ -66,15 +68,17 @@
       <div class="card">
         <h2>AFK最適構成</h2>
         <div class="hero" id="hero"><div class="tag">まだ計算していません</div><div class="main">—</div><div class="sub">「最適化」を押してください。</div></div>
+        <div class="statusLine" id="bootstrapPlan"></div>
         <div class="coreGrid" id="coreGrid"></div>
         <div class="summary">
-          <div class="metric"><span>Slowdown</span><b class="good" id="resultSlow">—</b></div>
+          <div class="metric"><span>Slowdown</span><b id="resultSlow">—</b></div>
           <div class="metric"><span>Auto Prestige</span><b class="good" id="resultLevel">—</b></div>
           <div class="metric"><span>1run予測</span><b id="resultCycle">—</b></div>
           <div class="metric"><span>1run獲得▲</span><b id="resultGain">—</b></div>
           <div class="metric"><span>必要run数</span><b id="resultRuns">—</b></div>
           <div class="metric"><span>次Ascension ETA</span><b class="gold" id="resultEta">—</b></div>
           <div class="metric"><span>最悪DPS/HP</span><b id="resultShot">—</b></div>
+          <div class="metric"><span>Top供給</span><b id="resultSupply">—</b></div>
           <div class="metric"><span>目標Lv queue圧</span><b id="resultQueue">—</b></div>
         </div>
         <div class="statusLine" id="coreStatus"></div>
@@ -82,14 +86,25 @@
 
       <div class="card">
         <h2>実測校正</h2>
-        <div class="small muted">未知なのはUnity物理/contact throughputです。VRCWのEXP・HP・DPS・spawn式は固定し、実測時間から「最大terminal処理イベント/s」と固定overheadをfitします。構成が変わっても、その物理上限を相対モデルへ移します。</div>
-        <div class="calStats"><div class="metric"><span>物理処理cap</span><b id="calCap">—</b></div><div class="metric"><span>固定overhead</span><b id="calIntercept">—</b></div><div class="metric"><span>fit RMSE</span><b id="calRmse">—</b></div></div>
+        <div class="small muted">Top-level oreの供給はVRCW実装どおり最大20個/sでhard-capします。未知なのはその後のUnity物理/contact throughputなので、実測時間からterminal eventの飽和曲線と固定overheadをfitします。供給を増やした効果は20/sまで正確に残し、その先のcontact側だけ逓減させます。</div>
+        <div class="calStats"><div class="metric"><span>contact飽和漸近値</span><b id="calCap">—</b></div><div class="metric"><span>固定overhead</span><b id="calIntercept">—</b></div><div class="metric"><span>fit RMSE</span><b id="calRmse">—</b></div></div>
         <div style="overflow:auto;margin-top:8px"><table class="calTable"><thead><tr><th>実測</th><th>Slow</th><th>Lv</th><th>秒</th><th></th></tr></thead><tbody id="measureRows"></tbody></table></div>
         <h3>現在構成で実測を追加</h3>
         <div class="calAdd"><label>Slowdown<input id="measureSlow" inputmode="decimal" value="2000"></label><label>Auto Prestige Lv<input id="measureLevel" type="number" value="695"></label><label>実測秒<input id="measureSeconds" inputmode="decimal" placeholder="51.21"></label></div>
         <div class="actions"><button class="btn good" id="addMeasure">実測を追加</button><button class="btn" id="resetMeasures">既知4点へ戻す</button></div>
+        <h3>DPS / HP 実測アンカー</h3>
+        <div class="small muted">高Lvで理論DPSが外れた場合はこちら。実際に使っているCore、現在のIngot Upgrade、累積獲得▲からDPS補正を逆算し、one-shot判定へ反映します。</div>
+        <div class="calAdd">
+          <label>実使用Core [収,▲,破,費,供]<input id="dpsCore" placeholder="9,14,9,8,6"></label>
+          <label>観測Level<input id="dpsLevel" type="number" min="1" value="1292"></label>
+          <label>Slowdown<input id="dpsSlow" inputmode="decimal" value="1000"></label>
+          <label>実測DPS<input id="dpsObserved" inputmode="decimal" placeholder="3.07e123"></label>
+          <label>実測HP 小<input id="hpObserved" inputmode="decimal" placeholder="2.73e128"></label>
+        </div>
+        <div class="actions"><button class="btn good" id="applyDpsAnchor">DPS/HP実測を反映</button></div>
+        <div class="statusLine" id="dpsAnchorResult"></div>
         <div class="toast" id="toast"></div>
-        <details><summary>モデル上の扱い</summary><div class="foot">Level Up時はEXPが0へ全消去されるため、各ore eventの有効EXPを <code>min(1, oreEXP / requiredEXP)</code> として離散化しています。terminal supply、DPS/HP由来kill capacity、実測physical capの最小値を処理イベント率とし、Core候補はIngot倍率を最大 feasible levelに固定した後、収入/破壊/Cost/FeedのPareto frontierだけを探索します。Auto Prestigeは1秒pollを含めて次Ascensionまでの総残り時間が最小になるLvを選びます。</div></details>
+        <details><summary>モデル上の扱い</summary><div class="foot">Level Up時はEXPが0へ全消去されるため、各ore eventの有効EXPを <code>min(1, oreEXP / requiredEXP)</code> として離散化しています。Top supplyは <code>min(20, 0.6 × NormalFeed × IngotFeed × CoreFeed / Slowdown)</code>。split後のterminal supplyには実測からfitした滑らかなcontact飽和曲線を適用し、DPS/HP由来kill capacityとの小さい方を処理イベント率にします。Core候補はIngot倍率を最大 feasible levelに固定した後、収入/破壊/Cost/FeedのPareto frontierだけを探索します。</div></details>
       </div>
     </aside>
   </div>
@@ -101,7 +116,7 @@
   'use strict';
   const M=window.CrushAscensionOptimizer,$=id=>document.getElementById(id),KEY='crush-ascension-afk-optimizer-v1';
   const fmt=M.formatNumber,clone=x=>JSON.parse(JSON.stringify(x));
-  const defaults={ascensionCount:7,totalCore:M.totalCoreForAscension(7),coreAuto:true,heldIngots:0,totalIngotsEarned:2e9,prestigeCount:0,maxTargetLevel:3000,oneShotMargin:1,strictOneShot:true,dpsCalibration:1,ingotLevels:M.DEFAULT_INGOT_LEVELS.slice(),measurements:clone(M.DEFAULT_MEASUREMENTS)};
+  const defaults={ascensionCount:7,totalCore:M.totalCoreForAscension(7),coreAuto:true,normalAutoUnlocked:true,heldIngots:0,totalIngotsEarned:2e9,prestigeCount:0,maxTargetLevel:3000,oneShotMargin:1,strictOneShot:true,dpsCalibration:1,hpCalibration:1,manualClickRate:4,ingotLevels:M.DEFAULT_INGOT_LEVELS.slice(),measurements:clone(M.DEFAULT_MEASUREMENTS)};
   let state=load(),worker=null,requestId=0,lastResult=null,lastIngotPlan=null,lastFutureResult=null;
   function load(){try{return {...clone(defaults),...JSON.parse(localStorage.getItem(KEY)||'{}')}}catch{return clone(defaults)}}
   function save(){localStorage.setItem(KEY,JSON.stringify(state))}
@@ -110,13 +125,13 @@
   function effectText(i,l){const e=M.ingotEffect(i,l);if(i===4||i===7)return `+${Number(e.toPrecision(4))}%`;if(i===6)return `duration ×${Number(e.toPrecision(4))}`;return `×${Number(e.toPrecision(5))}`}
   function coreEffectText(i,l){const e=M.coreEffect(i,l);if(i===2)return `指数 ${e}`;if(i===3)return `Cost ×${e}`;return `×${fmt(e)}`}
   function readState(){
-    state.ascensionCount=Math.max(0,Math.floor(num($('ascension').value,state.ascensionCount)));state.coreAuto=$('coreAuto').checked;
+    state.ascensionCount=Math.max(0,Math.floor(num($('ascension').value,state.ascensionCount)));state.coreAuto=$('coreAuto').checked;state.normalAutoUnlocked=$('normalAutoUnlocked').checked;
     if(state.coreAuto){state.totalCore=M.totalCoreForAscension(state.ascensionCount);$('totalCore').value=state.totalCore;$('totalCore').disabled=true}else{$('totalCore').disabled=false;state.totalCore=Math.max(0,num($('totalCore').value,state.totalCore))}
-    state.heldIngots=Math.max(0,num($('heldIngots').value));state.totalIngotsEarned=Math.max(0,num($('totalEarned').value));state.prestigeCount=Math.max(0,Math.floor(num($('prestigeCount').value)));state.maxTargetLevel=Math.max(100,Math.floor(num($('maxTarget').value,2200)));state.oneShotMargin=Math.max(0,num($('oneShot').value,1));state.strictOneShot=$('strictShot').checked;state.dpsCalibration=Math.max(1e-9,num($('dpsCalibration').value,1));
+    state.heldIngots=Math.max(0,num($('heldIngots').value));state.totalIngotsEarned=Math.max(0,num($('totalEarned').value));state.prestigeCount=Math.max(0,Math.floor(num($('prestigeCount').value)));state.maxTargetLevel=Math.max(100,Math.floor(num($('maxTarget').value,2200)));state.oneShotMargin=Math.max(0,num($('oneShot').value,1));state.strictOneShot=$('strictShot').checked;state.dpsCalibration=Math.max(1e-300,num($('dpsCalibration').value,1));state.manualClickRate=Math.max(.5,num($('manualClickRate').value,4));
     state.ingotLevels=state.ingotLevels.map((_,i)=>Math.max(0,Math.floor(num($(`ingot${i}`).value))));save();renderDerived();renderIngotCards();
   }
   function renderInputs(){
-    $('ascension').value=state.ascensionCount;$('totalCore').value=state.totalCore;$('coreAuto').checked=!!state.coreAuto;$('totalCore').disabled=!!state.coreAuto;$('heldIngots').value=state.heldIngots;$('totalEarned').value=state.totalIngotsEarned;$('prestigeCount').value=state.prestigeCount;$('maxTarget').value=state.maxTargetLevel;$('oneShot').value=state.oneShotMargin;$('strictShot').checked=state.strictOneShot!==false;$('dpsCalibration').value=state.dpsCalibration;
+    $('ascension').value=state.ascensionCount;$('totalCore').value=state.totalCore;$('coreAuto').checked=!!state.coreAuto;$('normalAutoUnlocked').checked=state.normalAutoUnlocked!==false;$('totalCore').disabled=!!state.coreAuto;$('heldIngots').value=state.heldIngots;$('totalEarned').value=state.totalIngotsEarned;$('prestigeCount').value=state.prestigeCount;$('maxTarget').value=state.maxTargetLevel;$('oneShot').value=state.oneShotMargin;$('strictShot').checked=state.strictOneShot!==false;$('dpsCalibration').value=state.dpsCalibration;$('manualClickRate').value=state.manualClickRate;
     renderIngotCards();renderDerived();renderMeasurements();
   }
   function renderDerived(){const req=M.nextAscensionRequirement(state.ascensionCount);$('reqIngot').textContent=fmt(req);$('prestigeRemain').textContent=Math.max(0,25-state.prestigeCount);$('maxCoreIngot').textContent=`Lv${M.maxCoreLevel(1,state.totalCore)} (×${fmt(M.coreEffect(1,M.maxCoreLevel(1,state.totalCore)))})`;$('calCount').textContent=`${state.measurements.length}点`}
@@ -128,34 +143,46 @@
     $('measureRows').innerHTML=state.measurements.map((m,i)=>`<tr><td>${m.label||`#${i+1}`}</td><td>×${fmt(m.slowdown)}</td><td>${m.targetLevel}</td><td>${num(m.seconds).toFixed(2)}</td><td><button class="btn" data-del="${i}" style="padding:2px 6px">×</button></td></tr>`).join('');
     $('measureRows').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{state.measurements.splice(Number(b.dataset.del),1);save();renderMeasurements();renderDerived();optimize()});
   }
-  function workerInstance(){if(worker)return worker;worker=new Worker('ascension-worker.js');worker.onmessage=e=>{const m=e.data||{};if(m.id!==requestId)return;$('optimize').disabled=false;$('loading').classList.remove('on');if(m.type==='error'){showToast(m.error,true);return}lastResult=m.result;lastIngotPlan=m.ingotPlan;lastFutureResult=m.futureResult;renderResult()};worker.onerror=e=>{showToast(e.message||'Worker error',true);$('optimize').disabled=false;$('loading').classList.remove('on')};return worker}
-  function optimize(){readState();requestId++;$('optimize').disabled=true;$('loading').classList.add('on');workerInstance().postMessage({type:'optimize',id:requestId,input:state,measurements:state.measurements,maxIngotSteps:96})}
+  function workerInstance(){if(worker)return worker;worker=new Worker('ascension-worker.js');worker.onmessage=e=>{const m=e.data||{};if(m.id!==requestId)return;if(m.type==='error'){showToast(m.error,true);$('optimize').disabled=false;$('loading').classList.remove('on');return}if(m.type==='result'){lastResult=m.result;renderResult();$('loading').textContent='Ingot購入計画を計算中…';return}if(m.type==='ingot'){lastIngotPlan=m.ingotPlan;lastFutureResult=m.futureResult;renderIngotPlan();$('optimize').disabled=false;$('loading').textContent='探索中…';$('loading').classList.remove('on')}};worker.onerror=e=>{showToast(e.message||'Worker error',true);$('optimize').disabled=false;$('loading').classList.remove('on')};return worker}
+  function optimize(){readState();requestId++;if(worker){worker.terminate();worker=null}lastIngotPlan=null;lastFutureResult=null;$('nextAction').innerHTML='<b>AFK構成を先に計算中…</b><div class="small">Ingot購入計画はAFK構成表示後もバックグラウンドで続けます。</div>';$('ingotSteps').textContent='計算中…';$('futureCore').textContent='';$('optimize').disabled=true;$('loading').textContent='AFK構成を計算中…';$('loading').classList.add('on');workerInstance().postMessage({type:'optimize',id:requestId,input:state,measurements:state.measurements,maxIngotSteps:96})}
   let optimizeTimer=0;function scheduleOptimize(ms=250){clearTimeout(optimizeTimer);optimizeTimer=setTimeout(optimize,ms)}
   function renderResult(){
     const r=lastResult,p=r&&r.plan,cal=r&&r.calibration;$('calCap').textContent=cal?`${cal.physicalCap.toFixed(2)} events/s`:'—';$('calIntercept').textContent=cal?`${cal.intercept.toFixed(2)}s`:'—';$('calRmse').textContent=cal&&Number.isFinite(cal.rmse)?`${cal.rmse.toFixed(2)}s`:'—';
-    if(!p){$('hero').innerHTML='<div class="tag bad">条件を満たす構成なし</div><div class="main">探索失敗</div><div class="sub">One-shot安全率を下げるか、最大探索Lv/DPS補正を確認してください。</div>';return}
-    $('hero').innerHTML=`<div class="tag">Core Ingot Lv${r.selectedIngotLevel}${r.backedOff?`（絶対最大Lv${r.absoluteMaxIngotLevel}から${r.backedOff}段back-off）`:'＝絶対最大'}</div><div class="main">[${p.core.join(', ')}]</div><div class="sub">Slowdown ×${fmt(p.slowdown)} / Auto Prestige Lv${p.targetLevel}。次Ascensionまでの推定総時間を最小化したAFK構成です。</div>`;
+    if(!p){$('bootstrapPlan').textContent='';$('hero').innerHTML='<div class="tag bad">条件を満たす構成なし</div><div class="main">探索失敗</div><div class="sub">最大探索Lv/DPS補正を確認してください。</div>';return}
+    $('hero').innerHTML=`<div class="tag">Core Ingot Lv${r.selectedIngotLevel}${r.backedOff?`（絶対最大Lv${r.absoluteMaxIngotLevel}から${r.backedOff}段back-off）`:'＝絶対最大'}</div><div class="main">[${p.core.join(', ')}]</div><div class="sub">Slowdown ×${fmt(p.slowdown)} / Auto Prestige設定 Lv${p.targetLevel}（1秒poll時の実Prestige予測 ≈ Lv${p.actualPrestigeLevel}）。次Ascensionまでの推定総時間を最小化。</div>`;
+    const b=p.bootstrap;
+    if(b&&b.needed){
+      const slowStep=b.slowdown&&b.slowdown!==p.slowdown?` 初動Slowdown <b>×${fmt(b.slowdown)}</b>、300▲後に定常用 <b>×${fmt(p.slowdown)}</b> へ変更。`:` Slowdownは <b>×${fmt(p.slowdown)}</b> のまま。`;
+      const manual=b.manualNormalPurchases?` 初回だけ通常強化を「買える中で最安値」から連打（${state.manualClickRate}/s想定、約<b>${b.manualPurchases}回</b>）。Lv${b.actualPrestigeLevel}時の目安: ${b.manualNormalLevels.map((v,i)=>`${M.NORMAL.names[i]} ${v}`).join(' / ')}。`:'';
+      const coreStep=b.core&&b.core.join(',')!==p.core.join(',')?`初動Core <b>[${b.core.join(', ')}]</b> → 300▲後に定常Core <b>[${p.core.join(', ')}]</b>。`:`Core <b>[${p.core.join(', ')}]</b> のまま。`;
+      $('bootstrapPlan').innerHTML=b.prestigePerformed?`<span class="pill">Ascension直後</span> ${coreStep}${slowStep}${manual} Auto Prestige <b>Lv${b.targetLevel}</b>（実≈Lv${b.actualPrestigeLevel}, ${seconds(b.seconds)}）→ <b>${fmt(b.gain)}▲</b> → 300▲で通常Upgrade Auto解放 → 残り <b>${fmt(b.heldAfter)}▲</b>。このPrestigeは25回条件にも算入済み。`:`<span class="pill">Ascension直後</span> 保有▲から今すぐ <b>300▲</b>を通常Upgrade Autoへ支払い → 残り <b>${fmt(b.heldAfter)}▲</b>。初回Prestigeは不要。`;
+    }else $('bootstrapPlan').innerHTML='<span class="ok">通常Upgrade Autoは解放済みとして計算。</span>';
+    if(!$('dpsCore').value.trim())$('dpsCore').value=p.core.join(',');
     $('coreGrid').innerHTML=p.core.map((l,i)=>`<div class="coreCell"><span>${i+1}. ${M.CORE_NAMES[i]}</span><b>Lv${l}</b><small>${coreEffectText(i,l)}</small><small>累積 ${fmt(M.coreCost(i,l))}★</small></div>`).join('');
-    $('resultSlow').textContent=`×${fmt(p.slowdown)}`;$('resultLevel').textContent=`Lv${p.targetLevel}`;$('resultCycle').textContent=seconds(p.seconds);$('resultGain').textContent=`${fmt(p.gain)}▲`;$('resultRuns').textContent=p.runs;$('resultEta').textContent=seconds(p.eta);$('resultShot').textContent=`×${fmt(p.oneShotRatio)} @Lv${p.worstOneShotLevel}`;$('resultQueue').textContent=`×${p.queuePressure.toFixed(2)}`;
+    $('resultSlow').textContent=`×${fmt(p.slowdown)}${p.slowdownValidated?' ✓':' (未検証)'}`;$('resultSlow').className=p.slowdownValidated?'good':'warnText';$('resultLevel').textContent=`設定 ${p.targetLevel} → 実≈${p.actualPrestigeLevel}`;$('resultCycle').textContent=seconds(p.seconds);$('resultGain').textContent=`${fmt(p.gain)}▲`;$('resultRuns').textContent=p.runs;$('resultEta').textContent=seconds(p.eta);$('resultShot').textContent=`×${fmt(p.oneShotRatio)} @Lv${p.worstOneShotLevel}`;$('resultSupply').textContent=`${p.topSpawnAtTarget.toFixed(2)}/s${p.rawTopSpawnAtTarget>M.MAX_TOP_SPAWN_RATE?` (raw ${p.rawTopSpawnAtTarget.toFixed(2)})`:''}`;$('resultQueue').textContent=`×${p.queuePressure.toFixed(2)}`;
     const edge=p.targetLevel>=state.maxTargetLevel-2?'<span class="warnText"> Auto Prestige最適点が探索上限に接触しています。最大Lvを上げて再探索してください。</span>':'';
-    $('coreStatus').innerHTML=`使用Core <b>${fmt(p.coreUsed)}★</b> / 残り <b>${fmt(p.coreLeft)}★</b>。Pareto候補 ${p.frontierCount}構成を探索。${r.backedOff?'<span class="warnText">最大Ingot LvではOne-shot条件を満たせなかったため自動でback-offしました。</span>':'<span class="ok">Core Ingot倍率は設定可能な最大Lvを維持しています。</span>'}${edge}`;
+    const slowConfidence=p.slowdownValidated?'<span class="ok"> Slowdownは同一Core/Ingot/倍率の実測あり。</span>':'<span class="warnText"> Slowdownは別構成の実測からの外挿です。可能なら1run実測を追加してください。</span>';
+    const shotFallback=r.strictFallback?'<span class="warnText"> 現在のIngot状態では指定one-shot安全率を満たす構成が存在しないため、DPS/HP kill-rateを直接使うthroughput最適化へ自動fallbackしました。</span>':'';
+    $('coreStatus').innerHTML=`使用Core <b>${fmt(p.coreUsed)}★</b> / 残り <b>${fmt(p.coreLeft)}★</b>。Pareto候補 ${p.frontierCount}構成を探索。${r.backedOff?'<span class="warnText">最大Ingot Lvではone-shot条件を満たせなかったため自動でback-offしました。</span>':'<span class="ok">Core Ingot倍率は設定可能な最大Lvを維持しています。</span>'}${shotFallback}${slowConfidence}${edge}`;
     renderIngotPlan();$('measureSlow').value=p.slowdown;$('measureLevel').value=p.targetLevel;
   }
-  function groupSteps(steps){const out=[];for(const s of steps||[]){const last=out[out.length-1];if(last&&last.index===s.index&&last.to===s.level-1){last.to=s.level;last.cost+=s.cost;last.improvement=1-(1-last.improvement)*(1-s.improvement)}else out.push({index:s.index,name:s.name,from:s.level-1,to:s.level,cost:s.cost,improvement:s.improvement})}return out}
-  function renderIngotPlan(){const q=lastIngotPlan;if(!q)return;const groups=groupSteps(q.steps);$('ingotSpend').textContent=`${fmt(q.spent)}▲`;$('ingotPlanTarget').textContent=q.finalTargetLevel?`Lv${q.finalTargetLevel}`:'—';$('ingotPlanCycle').textContent=q.finalCycleSeconds?seconds(q.finalCycleSeconds):'—';$('ingotPlanRate').textContent=q.finalRate?fmt(q.finalRate):'—';
+  function groupSteps(steps){const out=[];for(const s of steps||[]){const last=out[out.length-1];if(last&&last.index===s.index&&last.to===s.level-1){last.to=s.level;last.cost+=s.cost;last.improvement=1-(1-last.improvement)*(1-s.improvement);last.rateAfter=s.rateAfter}else out.push({index:s.index,name:s.name,from:s.level-1,to:s.level,cost:s.cost,improvement:s.improvement,rateBefore:s.rateBefore,rateAfter:s.rateAfter})}return out}
+  function renderIngotPlan(){const q=lastIngotPlan;if(!q)return;const groups=groupSteps(q.steps);$('ingotSpend').textContent=`${fmt(q.spent)}▲`;$('ingotPlanTarget').textContent=q.finalTargetLevel?`${q.finalTargetLevel} → 実≈${q.finalActualPrestigeLevel}`:'—';$('ingotPlanCycle').textContent=q.finalCycleSeconds?seconds(q.finalCycleSeconds):'—';$('ingotPlanRate').textContent=q.finalRate?fmt(q.finalRate):'—';
     $('ingotTargetGrid').innerHTML=q.targetLevels.map((l,i)=>`<div class="ingotCard"><strong>${i+1}. ${M.INGOT.names[i]}</strong><div class="effect">Lv${l} / ${effectText(i,l)}</div><div class="cost">累積 ${fmt(M.ingotCumulativeCost(i,l))}▲</div></div>`).join('');
-    const future=lastFutureResult&&lastFutureResult.plan;$('futureCore').innerHTML=future?`<span class="pill">計画完了後</span> Core <b>[${future.core.join(', ')}]</b> / Slowdown <b>×${fmt(future.slowdown)}</b> / Auto Prestige <b>Lv${future.targetLevel}</b> に再計算されます。`:'';
+    const future=lastFutureResult&&lastFutureResult.plan;$('futureCore').innerHTML=future?`<span class="pill">計画完了後</span> Core <b>[${future.core.join(', ')}]</b> / Slowdown <b>×${fmt(future.slowdown)}</b> / Auto Prestige設定 <b>Lv${future.targetLevel}</b>（実≈Lv${future.actualPrestigeLevel}）に再計算されます。`:'';
     if(!groups.length){$('nextAction').innerHTML='<b>追加投資なし</b><div class="small">現在のIngot Upgrade状態では、次Ascensionまで▲を温存する方が速い判定です。</div>';$('ingotSteps').textContent='現在Lvを維持';return}
-    const first=groups[0];$('nextAction').innerHTML=`<b>次: ${first.name} Lv${first.from} → Lv${first.to}</b><div class="small">このまとまりの費用 ${fmt(first.cost)}▲。買える段階で購入し、その後も表の順に進めます。</div>`;
-    $('ingotSteps').innerHTML=`<table class="planTable"><thead><tr><th>Upgrade</th><th>Lv</th><th>費用</th><th>ETA改善</th></tr></thead><tbody>${groups.map(g=>`<tr><td>${g.name}</td><td>${g.from}→${g.to}</td><td>${fmt(g.cost)}▲</td><td>${(g.improvement*100).toFixed(1)}%</td></tr>`).join('')}</tbody></table>`;
+    const first=groups[0],firstPct=first.rateBefore>0?(first.rateAfter/first.rateBefore-1)*100:0;$('nextAction').innerHTML=`<b>次: ${first.name} Lv${first.from} → Lv${first.to}</b><div class="small">費用 ${fmt(first.cost)}▲。モデル上の▲/hは ${fmt(first.rateBefore*3600)} → <b>${fmt(first.rateAfter*3600)}</b>（${firstPct>=0?'+':''}${firstPct.toFixed(1)}%）。</div>`;
+    $('ingotSteps').innerHTML=`<table class="planTable"><thead><tr><th>Upgrade</th><th>Lv</th><th>費用</th><th>▲/h before→after</th><th>ETA改善</th></tr></thead><tbody>${groups.map(g=>{const pct=g.rateBefore>0?(g.rateAfter/g.rateBefore-1)*100:0;return `<tr><td>${g.name}</td><td>${g.from}→${g.to}</td><td>${fmt(g.cost)}▲</td><td>${fmt(g.rateBefore*3600)}→${fmt(g.rateAfter*3600)} (${pct>=0?'+':''}${pct.toFixed(1)}%)</td><td>${(g.improvement*100).toFixed(1)}%</td></tr>`}).join('')}</tbody></table>`;
   }
   function showToast(t,bad=false){$('toast').textContent=t;$('toast').className='toast '+(bad?'bad':'')}
+  function parseCoreVector(v){const a=String(v||'').match(/\d+/g)?.map(Number)||[];return a.length===5?a.map(x=>Math.max(0,Math.floor(x))):null}
 
-  $('optimize').onclick=optimize;$('resetAscension').onclick=()=>{readState();state.heldIngots=0;state.totalIngotsEarned=0;state.prestigeCount=0;state.ingotLevels=Array(8).fill(0);if(state.coreAuto)state.totalCore=M.totalCoreForAscension(state.ascensionCount);save();renderInputs();optimize()};
-  $('setCurrentKnown').onclick=()=>{state={...state,ascensionCount:7,totalCore:2186,coreAuto:true,heldIngots:0,totalIngotsEarned:2e9,prestigeCount:0,maxTargetLevel:3000,ingotLevels:M.DEFAULT_INGOT_LEVELS.slice()};save();renderInputs();optimize()};
+  $('optimize').onclick=optimize;$('resetAscension').onclick=()=>{readState();state.heldIngots=0;state.totalIngotsEarned=0;state.prestigeCount=0;state.normalAutoUnlocked=false;state.ingotLevels=Array(8).fill(0);if(state.coreAuto)state.totalCore=M.totalCoreForAscension(state.ascensionCount);save();renderInputs();optimize()};
+  $('setCurrentKnown').onclick=()=>{state={...state,ascensionCount:7,totalCore:2186,coreAuto:true,normalAutoUnlocked:true,heldIngots:0,totalIngotsEarned:2e9,prestigeCount:0,maxTargetLevel:3000,ingotLevels:M.DEFAULT_INGOT_LEVELS.slice()};save();renderInputs();optimize()};
   $('resetMeasures').onclick=()=>{state.measurements=clone(M.DEFAULT_MEASUREMENTS);save();renderMeasurements();renderDerived();optimize()};
-  $('addMeasure').onclick=()=>{readState();if(!lastResult||!lastResult.plan){showToast('先に最適化して現在Core構成を確定してください。',true);return}const sec=num($('measureSeconds').value),lv=Math.floor(num($('measureLevel').value)),slow=num($('measureSlow').value);if(!(sec>0&&lv>=50&&slow>=1)){showToast('Slowdown / Lv / 秒を確認してください。',true);return}state.measurements.push({targetLevel:lv,seconds:sec,slowdown:slow,core:lastResult.plan.core.slice(),ingot:state.ingotLevels.slice(),totalIngotsEarned:state.totalIngotsEarned,dpsCalibration:state.dpsCalibration,label:`A${state.ascensionCount} ×${fmt(slow)} Lv${lv}`});save();$('measureSeconds').value='';renderMeasurements();renderDerived();showToast('実測を追加しました。再fitします。');optimize()};
-  for(const id of ['ascension','totalCore','heldIngots','totalEarned','prestigeCount','maxTarget','oneShot','dpsCalibration'])$(id).addEventListener('change',()=>{readState();scheduleOptimize(180)});$('coreAuto').onchange=()=>{readState();renderInputs();scheduleOptimize(100)};$('strictShot').onchange=()=>{readState();scheduleOptimize(100)};
+  $('addMeasure').onclick=()=>{readState();if(!lastResult||!lastResult.plan){showToast('先に最適化して現在Core構成を確定してください。',true);return}const sec=num($('measureSeconds').value),lv=Math.floor(num($('measureLevel').value)),slow=num($('measureSlow').value);if(!(sec>0&&lv>=50&&slow>=1)){showToast('Slowdown / Lv / 秒を確認してください。',true);return}state.measurements.push({targetLevel:lv,seconds:sec,slowdown:slow,core:lastResult.plan.core.slice(),ingot:state.ingotLevels.slice(),totalIngotsEarned:state.totalIngotsEarned,dpsCalibration:state.dpsCalibration,hpCalibration:state.hpCalibration,label:`A${state.ascensionCount} ×${fmt(slow)} Lv${lv}`});save();$('measureSeconds').value='';renderMeasurements();renderDerived();showToast('実測を追加しました。再fitします。');optimize()};
+  $('applyDpsAnchor').onclick=()=>{readState();const core=parseCoreVector($('dpsCore').value),level=Math.floor(num($('dpsLevel').value)),slowdown=num($('dpsSlow').value),dps=num($('dpsObserved').value),hpSmall=num($('hpObserved').value);if(!core||!(level>=1&&slowdown>=1&&dps>0)){showToast('Coreは5要素、Level / Slowdown / DPSは正の値で入力してください。',true);return}const cal=lastResult&&lastResult.calibration||M.fitCalibration(state.measurements),fit=M.deriveDpsCalibration({level,core,ingot:state.ingotLevels.slice(),slowdown,totalIngotsEarned:state.totalIngotsEarned,dps,hpSmall},cal.physicalCap);state.dpsCalibration=fit.calibration;state.hpCalibration=fit.hpCalibration;$('dpsCalibration').value=fit.calibration.toExponential(6);save();$('dpsAnchorResult').innerHTML=`DPS補正 <b>${fit.calibration.toExponential(4)}</b>、HP補正 <b>×${fit.hpCalibration.toPrecision(4)}</b>。model DPS ${fit.predictedDps.toExponential(3)} → 実測 ${fit.observedDps.toExponential(3)}`;showToast('DPS/HP実測をone-shot判定へ反映しました。');optimize()};
+  for(const id of ['ascension','totalCore','heldIngots','totalEarned','prestigeCount','maxTarget','oneShot','dpsCalibration','manualClickRate'])$(id).addEventListener('change',()=>{readState();scheduleOptimize(180)});$('coreAuto').onchange=()=>{readState();renderInputs();scheduleOptimize(100)};$('normalAutoUnlocked').onchange=()=>{readState();scheduleOptimize(100)};$('strictShot').onchange=()=>{readState();scheduleOptimize(100)};
   renderInputs();optimize();
 })();
 </script>
