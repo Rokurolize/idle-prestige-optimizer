@@ -105,3 +105,30 @@ console.log(JSON.stringify({
   bootstrap:{targetLevel:boot.targetLevel,actualPrestigeLevel:boot.actualPrestigeLevel,gain:boot.gain,heldAfter:boot.heldAfter},
   freshFirst:ingotPlan.steps[0]
 },null,2));
+
+// Goal UI does not ask for _totalIngotsEarned. It is exactly reconstructable
+// during an Ascension from visible held Ingots + Ingot Upgrade spend + 300▲ Auto unlock.
+const inferredLevels=[3,2,1,0,0,0,0,0];
+assert.equal(M.inferTotalIngotsEarned(1234,inferredLevels,true),1234+M.ingotBundleCost(inferredLevels)+300);
+assert.equal(M.inferTotalIngotsEarned(1234,inferredLevels,false),1234+M.ingotBundleCost(inferredLevels));
+
+// The default "next Ascension" goal is rate-based and therefore does not require
+// the user to know the current-Ascension Prestige counter.
+const rateInput={...input,objective:'ingotRate',prestigeCount:0,totalIngotsEarned:M.inferTotalIngotsEarned(0,input.ingotLevels,true)};
+const rateResult=M.optimizeAscension(rateInput,M.DEFAULT_MEASUREMENTS);
+assert.ok(rateResult.plan&&rateResult.plan.rate>0);
+const rateInputPretend25={...rateInput,prestigeCount:25};
+const rateResultPretend25=M.optimizeAscension(rateInputPretend25,M.DEFAULT_MEASUREMENTS);
+assert.equal(rateResult.plan.core.join(','),rateResultPretend25.plan.core.join(','));
+assert.equal(rateResult.plan.slowdown,rateResultPretend25.plan.slowdown);
+assert.equal(rateResult.plan.targetLevel,rateResultPretend25.plan.targetLevel);
+
+// Overnight ranking is a distinct goal: no Prestige during the sleep run, hence
+// Core Ingot must be zero and the optimizer maximizes the end-of-window score.
+const rankingInput={ascensionCount:7,totalCore:2186,heldIngots:1e6,normalAutoUnlocked:true,ingotLevels:M.DEFAULT_INGOT_LEVELS.slice(),totalIngotsEarned:M.inferTotalIngotsEarned(1e6,M.DEFAULT_INGOT_LEVELS,true),afkHours:8,dpsCalibration:1,hpCalibration:1,manualClickRate:4};
+const ranking=M.optimizeRanking(rankingInput,M.DEFAULT_MEASUREMENTS);
+assert.ok(ranking.plan,'ranking optimizer should return a plan');
+assert.equal(ranking.plan.core[1],0,'ranking deep run must not waste Core on Ingot multiplier');
+assert.ok(ranking.plan.level>50);
+assert.ok(ranking.plan.expectedScoreLog>=ranking.plan.normalScoreLog);
+assert.ok(M.SLOWDOWN.includes(ranking.plan.slowdown));
