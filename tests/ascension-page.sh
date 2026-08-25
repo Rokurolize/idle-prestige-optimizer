@@ -27,4 +27,8 @@ grep -q "goal==='ranking'" "$worker"
 ! grep -q 'id="oneShot"' "$page"
 ! grep -q 'id="dpsCalibration"' "$page"
 grep -q 'href="ascension.html"' "$root/index.html"
+
+grep -q "addEventListener('input',persistEdit)" "$page"
+grep -q "addEventListener('pagehide'" "$page"
+grep -q "localStorage.setItem(KEY,JSON.stringify(state))" "$page"
 echo 'goal-based ascension page smoke: PASS'
