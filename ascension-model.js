@@ -55,6 +55,15 @@
   function finite(v,f=0){const n=Number(v);return Number.isFinite(n)?n:f}
   function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
   function pow10(log){if(log>300)return 1e300;if(log<-300)return 0;return Math.pow(10,log)}
+  function log10Add(a,b){
+    if(a===-Infinity)return b;if(b===-Infinity)return a;if(b>a){const t=a;a=b;b=t}
+    const d=b-a;if(d<-16)return a;return a+Math.log10(1+Math.pow(10,d));
+  }
+  function log10Sub(a,b){
+    if(b===-Infinity)return a;if(a===-Infinity||b>=a-1e-14)return -Infinity;
+    const d=b-a;if(d<-16)return a;return a+Math.log10(1-Math.pow(10,d));
+  }
+  function fromLog10(log){return log>Math.log10(Number.MAX_VALUE)?Infinity:log<-323?0:Math.pow(10,log)}
   function totalCoreForAscension(a){a=Math.max(0,Math.floor(finite(a)));return Math.pow(3,a)-1}
   function nextAscensionRequirement(a){a=Math.max(0,Math.floor(finite(a)));if(a<ASCENSION_INGOT_REQ.length)return ASCENSION_INGOT_REQ[a];const over=a-(ASCENSION_INGOT_REQ.length-1);return ASCENSION_INGOT_REQ[ASCENSION_INGOT_REQ.length-1]*Math.pow(3.55,over)}
 
@@ -96,9 +105,14 @@
     return Math.max(0,finite(held))+ingotBundleCost(levels||Array(8).fill(0))+(normalAutoUnlocked===false?0:NORMAL_AUTO_UNLOCK_COST);
   }
   function normalEffect(index,level){level=Math.max(0,Math.floor(finite(level)));return NORMAL.base[index]+NORMAL.per[index]*level+NORMAL.per[index]*NORMAL.quad[index]*level*level}
-  function requiredExp(level){let r=8*Math.pow(1.36,level);if(level<10)r/=5-.4*level;return r}
-  function baseOreValue(level){level=Math.max(1,Math.floor(finite(level,1)));return level<=EARLY_ORE_VALUE.length?EARLY_ORE_VALUE[level-1]:.13888888888888887*Math.pow(1.35,level)}
-  function baseOreHp(level){level=Math.max(1,Math.floor(finite(level,1)));return level<=EARLY_ORE_HP.length?EARLY_ORE_HP[level-1]:1.3888888888888888*Math.pow(1.25,level)}
+  function requiredExpLog10(level){
+    level=Math.max(1,Math.floor(finite(level,1)));let log=Math.log10(8)+level*Math.log10(1.36);if(level<10)log-=Math.log10(5-.4*level);return log;
+  }
+  function requiredExp(level){return fromLog10(requiredExpLog10(level))}
+  function baseOreValueLog10(level){level=Math.max(1,Math.floor(finite(level,1)));return level<=EARLY_ORE_VALUE.length?Math.log10(EARLY_ORE_VALUE[level-1]):Math.log10(.13888888888888887)+level*Math.log10(1.35)}
+  function baseOreValue(level){return fromLog10(baseOreValueLog10(level))}
+  function baseOreHpLog10(level){level=Math.max(1,Math.floor(finite(level,1)));return level<=EARLY_ORE_HP.length?Math.log10(EARLY_ORE_HP[level-1]):Math.log10(1.3888888888888888)+level*Math.log10(1.25)}
+  function baseOreHp(level){return fromLog10(baseOreHpLog10(level))}
   function expectedTerminalPerTop(level){
     level=Math.max(1,Math.floor(finite(level,1)));const w=[.45,.4,.18],unlocked=[true,level>=5,level>=15];let total=0,expected=0;
     for(let i=0;i<3;i++)if(unlocked[i]){total+=w[i];expected+=w[i]*Math.pow(4,i)}
@@ -108,20 +122,27 @@
   function prestigeGain(level,coreIngotLevel){return Math.max(level>=50?1:0,Math.floor(prestigeBase(level)*coreEffect(1,coreIngotLevel)))}
   function prestigePermanent(totalEarned){return 1+.1*Math.sqrt(Math.max(0,finite(totalEarned)))}
 
-  function buyNormalAutoLimited(cash,levels,gameLevel,costReduction,limit=Infinity){
+  function normalNextCostLog10(index,level,costReduction){
+    const raw=Math.log10(NORMAL.baseCost[index])+level*Math.log10(NORMAL.costRate[index])+Math.log10(Math.max(1e-300,costReduction));
+    // Preserve the game's integer ceiling exactly while costs are still representable
+    // with useful integer precision; afterwards the logarithmic value is sufficient.
+    if(raw<14)return Math.log10(Math.max(1,Math.ceil(Math.pow(10,raw))));
+    return raw;
+  }
+  function buyNormalAutoLimited(cashLog,levels,gameLevel,costReduction,limit=Infinity){
     let guard=0,bought=0;
     for(;;){
-      let best=-1,bestCost=Infinity;
+      let best=-1,bestCostLog=Infinity;
       for(let i=0;i<8;i++){
         if(gameLevel<NORMAL.unlock[i]||levels[i]>=NORMAL.max[i])continue;
-        const c=Math.ceil(NORMAL.baseCost[i]*Math.pow(NORMAL.costRate[i],levels[i])*costReduction);
-        if(c<bestCost){bestCost=c;best=i}
+        const c=normalNextCostLog10(i,levels[i],costReduction);
+        if(c<bestCostLog){bestCostLog=c;best=i}
       }
-      if(best<0||bestCost>cash||bought>=limit||++guard>5000)return {cash,bought};
-      cash-=bestCost;levels[best]++;bought++;
+      if(best<0||bestCostLog>cashLog+1e-12||bought>=limit||++guard>5000)return {cashLog,bought};
+      cashLog=log10Sub(cashLog,bestCostLog);levels[best]++;bought++;
     }
   }
-  function buyNormalAuto(cash,levels,gameLevel,costReduction){return buyNormalAutoLimited(cash,levels,gameLevel,costReduction).cash}
+  function buyNormalAuto(cashLog,levels,gameLevel,costReduction){return buyNormalAutoLimited(cashLog,levels,gameLevel,costReduction).cashLog}
 
   function rarityState(normalLevels,ingotLevels){
     const r=clamp(.005*normalLevels[3],0,1),g=ingotEffect(4,ingotLevels[4])/100,o=ingotEffect(7,ingotLevels[7])/100;
@@ -141,12 +162,13 @@
 
   function expectedUsefulExpPerTerminal(level,slowdown,normalRareLevel,ingotLevels){
     const rarity=rarityState([0,0,0,normalRareLevel,0,0,0,0],ingotLevels);
-    const req=requiredExp(level),baseValue=baseOreValue(level)*Math.max(1,finite(slowdown,1));
-    const expMult=ingotEffect(1,ingotLevels[1]),rareValue=ingotEffect(5,ingotLevels[5]);
-    const workNormal=Math.min(1,baseValue*.125*expMult/req);
-    const workRare=Math.min(1,baseValue*10*rareValue*.125*expMult/req);
-    const workGem=Math.min(1,baseValue*20*rareValue*.125*expMult/req);
-    const workOri=Math.min(1,baseValue*200*rareValue*.125*expMult/req);
+    const reqLog=requiredExpLog10(level),expMult=ingotEffect(1,ingotLevels[1]),rareValue=ingotEffect(5,ingotLevels[5]);
+    const packetLog=baseOreValueLog10(level)+Math.log10(Math.max(1,finite(slowdown,1)))+Math.log10(.125*expMult);
+    const work=(valueMultiplier)=>{const d=packetLog+Math.log10(Math.max(1e-300,valueMultiplier))-reqLog;return d>=0?1:(d<-323?0:Math.pow(10,d))};
+    const workNormal=work(1);
+    const workRare=work(10*rareValue);
+    const workGem=work(20*rareValue);
+    const workOri=work(200*rareValue);
     return {
       useful:rarity.pNormal*workNormal+rarity.pRare*workRare+rarity.pGem*workGem+rarity.pOri*workOri,
       workNormal,workRare,workGem,workOri,rarity
@@ -183,24 +205,24 @@
     const ingotFeed=ingotEffect(3,ingot[3]),expMult=ingotEffect(1,ingot[1]),refining=ingotEffect(0,ingot[0]),coreIncome=coreEffect(0,core[0]);
     const prestige=prestigePermanent(totalEarned),normalAutoEnabled=opts.normalAutoEnabled!==false,manualMode=opts.normalAutoMode==='manual',manualClickRate=Math.max(.1,finite(opts.manualClickRate,4)),manualCal=opts.manualCalibration||null,normalLevels=[0,0,0,0,0,0,0,0];
     const times=new Float64Array(target+1),minOneShot=new Float64Array(target+1),worstOneShotLevel=new Int32Array(target+1),queuePressure=new Float64Array(target+1),topSpawnRates=new Float64Array(target+1),rawTopSpawnRates=new Float64Array(target+1),contactRates=new Float64Array(target+1),normalRareLevels=new Int16Array(target+1),normalAtTarget=[];
-    let cash=0,rawSeconds=0,minShot=Infinity,worst=1,lastPressure=0,lastTopSpawn=0,lastRawTopSpawn=0,lastContactRate=0,lastDpsLog=-Infinity,lastHpSmallLog=-Infinity,lastHpLargeLog=-Infinity,manualClicks=0;
+    let cashLog=-Infinity,rawSeconds=0,minShot=Infinity,worst=1,lastPressure=0,lastTopSpawn=0,lastRawTopSpawn=0,lastContactRate=0,lastDpsLog=-Infinity,lastHpSmallLog=-Infinity,lastHpLargeLog=-Infinity,manualClicks=0;
     times[1]=0;minOneShot[1]=Infinity;
     for(let L=1;L<target;L++){
       if(normalAutoEnabled){
         if(manualMode){
-          const elapsed=manualCal?calibratedSeconds(rawSeconds,manualCal):rawSeconds,available=Math.max(0,Math.floor(elapsed*manualClickRate)-manualClicks),buy=buyNormalAutoLimited(cash,normalLevels,L,costReduction,available);cash=buy.cash;manualClicks+=buy.bought;
-        }else cash=buyNormalAuto(cash,normalLevels,L,costReduction);
+          const elapsed=manualCal?calibratedSeconds(rawSeconds,manualCal):rawSeconds,available=Math.max(0,Math.floor(elapsed*manualClickRate)-manualClicks),buy=buyNormalAutoLimited(cashLog,normalLevels,L,costReduction,available);cashLog=buy.cashLog;manualClicks+=buy.bought;
+        }else cashLog=buyNormalAuto(cashLog,normalLevels,L,costReduction);
       }
       const feed=normalEffect(7,normalLevels[7]);
       const spawn=topSpawnRate(core,ingot,feed,slowdown),topSpawn=spawn.actual;
       const terminalPerTop=expectedTerminalPerTop(L),terminalSupply=topSpawn*terminalPerTop;
       const dpsLog=dpsLog10(normalLevels,ingot,core,totalEarned,dpsCalibration);
-      const rawHpSmallLog=Math.log10(baseOreHp(L)),capHpSmallLog=dpsLog+Math.log10(ORE_MAX_CRUSH_SECONDS),hpSmallLog=softCapHpLog(rawHpSmallLog,capHpSmallLog)+Math.log10(slowdown)+Math.log10(hpCalibration);
+      const rawHpSmallLog=baseOreHpLog10(L),capHpSmallLog=dpsLog+Math.log10(ORE_MAX_CRUSH_SECONDS),hpSmallLog=softCapHpLog(rawHpSmallLog,capHpSmallLog)+Math.log10(slowdown)+Math.log10(hpCalibration);
       const rarity=rarityState(normalLevels,ingot),avgOriHp=1+4*rarity.pOri;
       const dpsKillRate=pow10(dpsLog-hpSmallLog)/avgOriHp;
       const contactRate=physicalCap*terminalSupply/(physicalCap+terminalSupply);
       const processed=Math.max(1e-12,Math.min(contactRate,dpsKillRate));
-      const req=requiredExp(L),useful=expectedUsefulExpPerTerminal(L,slowdown,normalLevels[3],ingot).useful;
+      const reqLog=requiredExpLog10(L),useful=expectedUsefulExpPerTerminal(L,slowdown,normalLevels[3],ingot).useful;
       rawSeconds+=1/Math.max(1e-12,processed*useful);
       times[L+1]=rawSeconds;
       const tier=L>=15?2:(L>=5?1:0),hpLargestNormalLog=hpSmallLog+tier*Math.log10(1.7),shot=pow10(dpsLog-hpLargestNormalLog);
@@ -214,8 +236,9 @@
       // EXP is based on pre-income base value.  This is the cash represented by the
       // amount of base value required to fill the level, plus the exact level reward.
       // Overshoot only increases real cash, so this is deliberately conservative.
-      const baseValueNeeded=req/(.125*expMult);
-      cash+=baseValueNeeded*(prestige*refining*coreIncome)+2*req;
+      const incomeLog=reqLog-Math.log10(.125*expMult)+Math.log10(Math.max(1e-300,prestige*refining*coreIncome));
+      const rewardLog=reqLog+Math.log10(2);
+      cashLog=log10Add(cashLog,log10Add(incomeLog,rewardLog));
     }
     for(const n of normalLevels)normalAtTarget.push(n);
     return {times,minOneShot,worstOneShotLevel,queuePressure,topSpawnRates,rawTopSpawnRates,contactRates,normalRareLevels,normalAtTarget,rawSeconds,manualClicks,topSpawnAtTarget:lastTopSpawn,rawTopSpawnAtTarget:lastRawTopSpawn,contactRateAtTarget:lastContactRate,dpsLogAtTarget:lastDpsLog,hpSmallLogAtTarget:lastHpSmallLog,hpLargeLogAtTarget:lastHpLargeLog};
@@ -263,6 +286,24 @@
 
   function calibratedSeconds(raw,cal){return Math.max(.01,finite(cal.intercept,0)+Math.max(.01,finite(cal.scale,1))*raw)}
   function actualAutoCycle(seconds){return Math.max(AUTO_PRESTIGE_INTERVAL,Math.ceil(seconds/AUTO_PRESTIGE_INTERVAL)*AUTO_PRESTIGE_INTERVAL)}
+  function sameLevels(a,b){return Array.isArray(a)&&Array.isArray(b)&&a.length===b.length&&a.every((v,i)=>Math.floor(finite(v))===Math.floor(finite(b[i])))}
+  function exactTimingMeasurements(measurements,core,ingot,slowdown){
+    return (measurements||[]).filter(m=>finite(m.targetLevel)>=50&&finite(m.seconds)>0&&finite(m.slowdown)===finite(slowdown)&&sameLevels(m.core,core)&&sameLevels(m.ingot,ingot)).sort((a,b)=>a.targetLevel-b.targetLevel);
+  }
+  function timingResolver(curve,cal,core,ingot,slowdown,measurements){
+    const points=exactTimingMeasurements(measurements,core,ingot,slowdown),modelAt=L=>calibratedSeconds(curve.times[Math.max(1,Math.min(curve.times.length-1,Math.floor(L)))],cal);
+    const residual=points.map(p=>({level:Math.floor(p.targetLevel),r:finite(p.seconds)-modelAt(p.targetLevel)}));
+    function correction(L){
+      if(!residual.length)return 0;if(L<=residual[0].level)return residual[0].r;
+      const last=residual[residual.length-1];if(L>=last.level)return last.r;
+      let lo=0,hi=residual.length-1;while(lo+1<hi){const mid=(lo+hi)>>1;if(residual[mid].level<=L)lo=mid;else hi=mid}
+      const a=residual[lo],b=residual[hi],t=(L-a.level)/Math.max(1,b.level-a.level);return a.r+(b.r-a.r)*t;
+    }
+    const secondsAt=L=>Math.max(.01,modelAt(L)+correction(L));
+    const levelAt=seconds=>{let lo=1,hi=curve.times.length-1;while(lo<hi){const mid=Math.ceil((lo+hi)/2);if(secondsAt(mid)<=seconds)lo=mid;else hi=mid-1}return lo};
+    const minLevel=points.length?points[0].targetLevel:Infinity,maxLevel=points.length?points[points.length-1].targetLevel:-Infinity;
+    return {points,secondsAt,levelAt,validated:points.length>=2,minLevel,maxLevel};
+  }
   function levelAtCalibratedTime(curve,cal,seconds){
     let lo=1,hi=curve.times.length-1;
     while(lo<hi){const mid=Math.ceil((lo+hi)/2);if(calibratedSeconds(curve.times[mid],cal)<=seconds)lo=mid;else hi=mid-1}
@@ -363,11 +404,11 @@
     return [...set].sort((a,b)=>a-b);
   }
 
-  function evaluateCurve(curve,core,cal,input){
+  function evaluateCurve(curve,core,cal,input,timing=null){
     const req=Math.max(0,finite(input.nextRequirement)),held=Math.max(0,finite(input.heldIngots)),pcount=Math.max(0,Math.floor(finite(input.prestigeCount))),oneShot=Math.max(0,finite(input.oneShotMargin,1)),strict=input.strictOneShot!==false,objective=input.objective||'ascensionEta';
     const maxTarget=curve.times.length-1;let best=null;
     for(let L=50;L<=maxTarget;L++){
-      const configuredReach=calibratedSeconds(curve.times[L],cal),seconds=actualAutoCycle(configuredReach),actualLevel=levelAtCalibratedTime(curve,cal,seconds);
+      const configuredReach=timing?timing.secondsAt(L):calibratedSeconds(curve.times[L],cal),seconds=actualAutoCycle(configuredReach),actualLevel=timing?timing.levelAt(seconds):levelAtCalibratedTime(curve,cal,seconds);
       const shot=curve.minOneShot[actualLevel];if(strict&&shot<oneShot)continue;
       const gain=prestigeGain(actualLevel,core[1]);if(!(gain>0))continue;
       const byIngots=req<=held?0:Math.ceil((req-held)/gain),byPrestige=Math.max(0,25-pcount),rate=gain/seconds;
@@ -383,8 +424,8 @@
     let best=null;const maxTarget=Math.max(100,Math.floor(finite(input.maxTargetLevel,2200)));
     for(const slowdown of slowdowns||slowdownCandidates(core,ingot,cal.physicalCap)){
       const curve=simulateCurve({maxTarget,core,ingot,slowdown,physicalCap:cal.physicalCap,totalIngotsEarned:input.totalIngotsEarned,dpsCalibration:input.dpsCalibration,hpCalibration:input.hpCalibration,normalAutoEnabled:true});
-      const ev=evaluateCurve(curve,core,cal,input);if(!ev)continue;const actual=ev.actualPrestigeLevel;
-      const row={core:core.slice(),ingot:ingot.slice(),slowdown,...ev,steadyRuns:ev.runs,bootstrapRuns:0,normalAtTarget:curve.normalAtTarget,topSpawnAtTarget:curve.topSpawnRates[actual],rawTopSpawnAtTarget:curve.rawTopSpawnRates[actual],contactRateAtTarget:curve.contactRates[actual]};
+      const timing=timingResolver(curve,cal,core,ingot,slowdown,input.measurements||[]),ev=evaluateCurve(curve,core,cal,input,timing);if(!ev)continue;const actual=ev.actualPrestigeLevel;
+      const row={core:core.slice(),ingot:ingot.slice(),slowdown,...ev,steadyRuns:ev.runs,bootstrapRuns:0,normalAtTarget:curve.normalAtTarget,topSpawnAtTarget:curve.topSpawnRates[actual],rawTopSpawnAtTarget:curve.rawTopSpawnRates[actual],contactRateAtTarget:curve.contactRates[actual],timingMeasurementCount:timing.points.length,timingValidated:timing.validated&&ev.targetLevel>=timing.minLevel&&ev.targetLevel<=timing.maxLevel,timingMinLevel:timing.minLevel,timingMaxLevel:timing.maxLevel};
       if(!best||row.eta<best.eta-1e-9||(Math.abs(row.eta-best.eta)<1e-9&&row.rate>best.rate))best=row;
     }
     return best;
@@ -392,7 +433,7 @@
 
   function optimizeAscension(input,measurements){
     const a=Math.max(0,Math.floor(finite(input.ascensionCount,7))),totalCore=Math.max(0,finite(input.totalCore,totalCoreForAscension(a))),ingot=(input.ingotLevels||Array(8).fill(0)).map(x=>Math.max(0,Math.floor(finite(x))));
-    const cal=fitCalibration(measurements),base={...input,ascensionCount:a,totalCore,nextRequirement:finite(input.nextRequirement,nextAscensionRequirement(a)),ingotLevels:ingot};
+    const cal=fitCalibration(measurements),base={...input,measurements:measurements||[],ascensionCount:a,totalCore,nextRequirement:finite(input.nextRequirement,nextAscensionRequirement(a)),ingotLevels:ingot};
     const bootstrap=optimizeNormalAutoBootstrap(base,totalCore,ingot,cal);if(!bootstrap)return {plan:null,calibration:cal,ascensionCount:a,totalCore,nextRequirement:base.nextRequirement,strictFallback:false};
     const steadyBase=bootstrap.postState||{...base,normalAutoUnlocked:true};
     const absoluteMax=maxCoreLevel(1,totalCore);
@@ -517,7 +558,7 @@
   }
 
   function rankingIncomeLog10(level,slowdown,core,ingot,totalEarned,normalRareLevel,expected=true){
-    let log=Math.log10(Math.max(1e-300,baseOreValue(level)))+Math.log10(Math.max(1,slowdown))+Math.log10(coreEffect(0,core[0]))+Math.log10(ingotEffect(0,ingot[0]))+Math.log10(prestigePermanent(totalEarned));
+    let log=baseOreValueLog10(level)+Math.log10(Math.max(1,slowdown))+Math.log10(coreEffect(0,core[0]))+Math.log10(ingotEffect(0,ingot[0]))+Math.log10(prestigePermanent(totalEarned));
     if(expected)log+=Math.log10(Math.max(1e-300,expectedRarityValueMultiplier(normalRareLevel,ingot)));
     return log;
   }
@@ -573,7 +614,7 @@
 
   return {
     TERMINAL_ORES_PER_TOP,MAX_TOP_SPAWN_RATE,NORMAL_AUTO_UNLOCK_COST,OUTER_DAMAGE_FACTOR,ORE_MAX_CRUSH_SECONDS,EARLY_ORE_VALUE,EARLY_ORE_HP,NORMAL,INGOT,CORE_NAMES,CORE_FEED,SLOWDOWN,ASCENSION_INGOT_REQ,DEFAULT_INGOT_LEVELS,DEFAULT_CORE,DEFAULT_MEASUREMENTS,
-    totalCoreForAscension,nextAscensionRequirement,coreCost,maxCoreLevel,coreEffect,coreBundleCost,ingotEffect,ingotNextCost,ingotCumulativeCost,ingotBundleCost,inferTotalIngotsEarned,normalEffect,requiredExp,baseOreValue,baseOreHp,expectedTerminalPerTop,prestigeBase,prestigeGain,prestigePermanent,
+    totalCoreForAscension,nextAscensionRequirement,coreCost,maxCoreLevel,coreEffect,coreBundleCost,ingotEffect,ingotNextCost,ingotCumulativeCost,ingotBundleCost,inferTotalIngotsEarned,normalEffect,requiredExpLog10,requiredExp,baseOreValueLog10,baseOreValue,baseOreHpLog10,baseOreHp,expectedTerminalPerTop,prestigeBase,prestigeGain,prestigePermanent,
     topSpawnRate,expectedUsefulExpPerTerminal,expectedRarityValueMultiplier,rankingIncomeLog10,dpsLog10,softCapHpLog,simulateCurve,deriveDpsCalibration,fitCalibration,planNormalAutoBootstrap,optimizeNormalAutoBootstrap,paretoCoreCandidates,slowdownCandidates,optimizeFixedCore,optimizeAscension,optimizeIngotUpgrades,optimizeRanking,optimizeRankingIngotUpgrades,formatNumber
   };
 });
