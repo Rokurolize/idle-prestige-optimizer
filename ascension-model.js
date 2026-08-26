@@ -78,6 +78,7 @@
   }
   function fromLog10(log){return log>Math.log10(Number.MAX_VALUE)?Infinity:log<-323?0:Math.pow(10,log)}
   function totalCoreForAscension(a){a=Math.max(0,Math.floor(finite(a)));return Math.pow(3,a)-1}
+  function slowdownLevel(multiplier){const v=finite(multiplier,NaN);if(!(v>=1))return -1;for(let i=0;i<SLOWDOWN.length;i++)if(Math.abs(SLOWDOWN[i]-v)<=Math.max(1,Math.abs(v))*1e-12)return i;return -1}
   function nextAscensionRequirement(a){a=Math.max(0,Math.floor(finite(a)));if(a<ASCENSION_INGOT_REQ.length)return ASCENSION_INGOT_REQ[a];const over=a-(ASCENSION_INGOT_REQ.length-1);return ASCENSION_INGOT_REQ[ASCENSION_INGOT_REQ.length-1]*Math.pow(3.55,over)}
 
   function coreCost(index,level){
@@ -686,7 +687,47 @@
     const finalPlan=fullPolicy(levels,held,totalEarned,prestigeCount)||policy,plannedRunsRemaining=runsToGoal(held,prestigeCount,finalPlan);
     const plannedEta=elapsed+finalPlan.eta,timeSaved=Math.max(0,baselineEta-plannedEta),converged=stopReason==='marginal_no_gain'||stopReason==='requirement_reached';
     const finalPhasePlan={core:finalPlan.core.slice(),slowdown:finalPlan.slowdown,targetLevel:finalPlan.targetLevel,actualPrestigeLevel:finalPlan.actualPrestigeLevel,seconds:finalPlan.seconds,gain:finalPlan.gain,rate:finalPlan.rate,prestigeSchedule:(finalPlan.prestigeSchedule||[]).map(x=>({...x}))};
-    return {steps,phases,targetLevels:levels.slice(),initialLevels,initialHeld,initialPrestigeCount,finalHeld:held,finalPrestigeCount:prestigeCount,spent,simulatedWaitSeconds:elapsed,postBootstrapState:postBootstrapInput,baselineEta,plannedEta,timeSaved,bootstrapSeconds:plan.bootstrap&&plan.bootstrap.needed?finite(plan.bootstrap.seconds):0,totalPlannedEta:plannedEta+(plan.bootstrap&&plan.bootstrap.needed?finite(plan.bootstrap.seconds):0),plannedRunsRemaining,stopReason,converged,nodesEvaluated,replans,finalRate:finalPlan.rate,finalTargetLevel:finalPlan.targetLevel,finalActualPrestigeLevel:finalPlan.actualPrestigeLevel,finalCycleSeconds:finalPlan.seconds,finalGain:finalPlan.gain,finalPrestigeSchedule:(finalPlan.prestigeSchedule||[]).map(x=>({...x})),finalPlan:finalPhasePlan};
+    return {steps,phases,targetLevels:levels.slice(),initialLevels,initialHeld,initialPrestigeCount,finalHeld:held,finalTotalIngotsEarned:totalEarned,finalPrestigeCount:prestigeCount,spent,simulatedWaitSeconds:elapsed,postBootstrapState:postBootstrapInput,baselineEta,plannedEta,timeSaved,bootstrapSeconds:plan.bootstrap&&plan.bootstrap.needed?finite(plan.bootstrap.seconds):0,totalPlannedEta:plannedEta+(plan.bootstrap&&plan.bootstrap.needed?finite(plan.bootstrap.seconds):0),plannedRunsRemaining,stopReason,converged,nodesEvaluated,replans,finalRate:finalPlan.rate,finalTargetLevel:finalPlan.targetLevel,finalActualPrestigeLevel:finalPlan.actualPrestigeLevel,finalCycleSeconds:finalPlan.seconds,finalGain:finalPlan.gain,finalPrestigeSchedule:(finalPlan.prestigeSchedule||[]).map(x=>({...x})),finalPlan:finalPhasePlan};
+  }
+
+  function completeAscensionState(input,ascensionResult,roadmap){
+    const plan=ascensionResult&&ascensionResult.plan,req=Math.max(0,finite(ascensionResult&&ascensionResult.nextRequirement,nextAscensionRequirement(input&&input.ascensionCount)));
+    if(!plan)return {completed:false,reason:'no_plan'};
+    const post=roadmap&&roadmap.postBootstrapState||plan.bootstrap&&plan.bootstrap.postState||input||{};
+    let held=Math.max(0,finite(roadmap&&roadmap.finalHeld,post.heldIngots)),totalEarned=Math.max(0,finite(roadmap&&roadmap.finalTotalIngotsEarned,post.totalIngotsEarned)),prestigeCount=Math.max(0,Math.floor(finite(roadmap&&roadmap.finalPrestigeCount,post.prestigeCount)));
+    const schedule=roadmap&&roadmap.finalPrestigeSchedule||plan.prestigeSchedule||[];
+    let finalRunSeconds=0,finalRunGain=0,finalRuns=0;
+    for(const part of schedule){
+      const runs=Math.max(0,Math.floor(finite(part&&part.runs))),gain=Math.max(0,finite(part&&part.totalGain,finite(part&&part.gain)*runs)),seconds=Math.max(0,finite(part&&part.totalSeconds,finite(part&&part.seconds)*runs));
+      finalRuns+=runs;finalRunGain+=gain;finalRunSeconds+=seconds;
+    }
+    held+=finalRunGain;totalEarned+=finalRunGain;prestigeCount+=finalRuns;
+    const a=Math.max(0,Math.floor(finite(input&&input.ascensionCount,ascensionResult&&ascensionResult.ascensionCount))),levels=(roadmap&&roadmap.targetLevels||input&&input.ingotLevels||Array(8).fill(0)).slice();
+    const completed=held+1e-6>=req&&prestigeCount>=25,eta=roadmap?Math.max(0,finite(roadmap.totalPlannedEta,finite(roadmap.plannedEta))):Math.max(0,finite(plan.eta));
+    const finalState={...input,ascensionCount:a,totalCore:Math.max(0,finite(input&&input.totalCore,totalCoreForAscension(a))),heldIngots:held,totalIngotsEarned:totalEarned,prestigeCount,normalAutoUnlocked:true,ingotLevels:levels};
+    const nextAscension=a+1,nextState={...input,objective:'ascensionEta',ascensionCount:nextAscension,totalCore:totalCoreForAscension(nextAscension),heldIngots:0,totalIngotsEarned:0,prestigeCount:0,normalAutoUnlocked:false,ingotLevels:Array(8).fill(0)};
+    return {completed,reason:completed?'complete':'requirements_not_met',eta,requirement:req,finalRuns,finalRunSeconds,finalRunGain,finalState,nextState};
+  }
+
+  function ascensionSearchMaxLevel(ascensionCount,ingotLevels){
+    const a=Math.max(0,Math.floor(finite(ascensionCount))),levels=ingotLevels||Array(8).fill(0),byAsc=3000+250*Math.max(0,a-10),byExp=3000+100*Math.max(0,finite(levels[1])-30);
+    return Math.min(10000,Math.max(3000,byAsc,byExp));
+  }
+
+  function optimizeTargetLevel(input,targetLevel,measurements){
+    const target=Math.max(1,Math.floor(finite(targetLevel,10000))),a=Math.max(0,Math.floor(finite(input&&input.ascensionCount))),totalCore=Math.max(0,finite(input&&input.totalCore,totalCoreForAscension(a))),ingot=(input&&input.ingotLevels||Array(8).fill(0)).map(x=>Math.max(0,Math.floor(finite(x)))),cal=fitCalibration(measurements),totalEarned=Math.max(0,finite(input&&input.totalIngotsEarned));
+    let best=null;
+    // A no-Prestige deep run gets no benefit from Core Ingot, so pin it to zero
+    // and spend the remaining Core only on progression-affecting upgrades.
+    for(const cand of paretoCoreCandidates(totalCore,0)){
+      for(const slowdown of slowdownCandidates(cand.core,ingot,cal.physicalCap)){
+        const curve=simulateCurve({maxTarget:target,core:cand.core,ingot,slowdown,physicalCap:cal.physicalCap,totalIngotsEarned:totalEarned,dpsCalibration:input&&input.dpsCalibration,hpCalibration:input&&input.hpCalibration,normalAutoEnabled:true});
+        const timing=timingResolver(curve,cal,cand.core,ingot,slowdown,measurements||[]),seconds=timing.secondsAt(target),row={targetLevel:target,seconds,core:cand.core.slice(),coreUsed:cand.used,coreLeft:cand.left,slowdown,maxSupplyCappedSlowdown:maxSupplyCappedSlowdown(cand.core,ingot,4),topSpawnAtTarget:curve.topSpawnRates[target],rawTopSpawnAtTarget:curve.rawTopSpawnRates[target],contactRateAtTarget:curve.contactRates[target],queuePressureAtTarget:curve.queuePressure[target],timingMeasurementCount:timing.points.length,timingValidated:timing.validated&&target>=timing.minLevel&&target<=timing.maxLevel,timingMinLevel:timing.minLevel,timingMaxLevel:timing.maxLevel};
+        const tie=best&&Math.abs(row.seconds-best.seconds)<1e-9;
+        if(!best||row.seconds<best.seconds-1e-9||(tie&&row.slowdown>best.slowdown))best=row;
+      }
+    }
+    return {plan:best,calibration:cal,ascensionCount:a,totalCore,targetLevel:target};
   }
 
   function expectedRarityValueMultiplier(normalRareLevel,ingotLevels){
@@ -751,7 +792,7 @@
 
   return {
     TERMINAL_ORES_PER_TOP,MAX_TOP_SPAWN_RATE,NORMAL_AUTO_UNLOCK_COST,OUTER_DAMAGE_FACTOR,ORE_MAX_CRUSH_SECONDS,EARLY_ORE_VALUE,EARLY_ORE_HP,NORMAL,INGOT,CORE_NAMES,CORE_FEED,SLOWDOWN,ASCENSION_INGOT_REQ,DEFAULT_INGOT_LEVELS,DEFAULT_CORE,A18_VIDEO_CORE,A18_VIDEO_INGOT,DEFAULT_MEASUREMENTS,
-    totalCoreForAscension,nextAscensionRequirement,coreCost,maxCoreLevel,coreEffect,coreBundleCost,ingotEffect,ingotNextCost,ingotCumulativeCost,ingotBundleCost,inferTotalIngotsEarned,normalEffect,requiredExpLog10,requiredExp,baseOreValueLog10,baseOreValue,baseOreHpLog10,baseOreHp,expectedTerminalPerTop,prestigeBase,prestigeGain,prestigePermanent,
-    topSpawnRate,expectedUsefulExpPerTerminal,expectedRarityValueMultiplier,rankingIncomeLog10,dpsLog10,softCapHpLog,simulateCurve,deriveDpsCalibration,fitCalibration,exactTimingMeasurements,timingResolver,mergePrestigeSchedule,prestigeScheduleFunding,planNormalAutoBootstrap,optimizeNormalAutoBootstrap,paretoCoreCandidates,slowdownCandidates,optimizeFixedCore,optimizeAscension,optimizeIngotUpgrades,optimizeRanking,optimizeRankingIngotUpgrades,formatNumber
+    totalCoreForAscension,slowdownLevel,nextAscensionRequirement,coreCost,maxCoreLevel,coreEffect,coreBundleCost,ingotEffect,ingotNextCost,ingotCumulativeCost,ingotBundleCost,inferTotalIngotsEarned,normalEffect,requiredExpLog10,requiredExp,baseOreValueLog10,baseOreValue,baseOreHpLog10,baseOreHp,expectedTerminalPerTop,prestigeBase,prestigeGain,prestigePermanent,
+    topSpawnRate,expectedUsefulExpPerTerminal,expectedRarityValueMultiplier,rankingIncomeLog10,dpsLog10,softCapHpLog,simulateCurve,deriveDpsCalibration,fitCalibration,exactTimingMeasurements,timingResolver,mergePrestigeSchedule,prestigeScheduleFunding,planNormalAutoBootstrap,optimizeNormalAutoBootstrap,paretoCoreCandidates,slowdownCandidates,optimizeFixedCore,optimizeAscension,optimizeIngotUpgrades,completeAscensionState,ascensionSearchMaxLevel,optimizeTargetLevel,optimizeRanking,optimizeRankingIngotUpgrades,formatNumber
   };
 });
