@@ -110,7 +110,7 @@
     const per=INGOT.per[index],q=INGOT.quad[index],v=per*level+per*q*level*level;
     if(index<=3||index===5)return 1+v;
     if(index===4)return Math.min(1,.1*level); // displayed percentage points; scene cap is 1.0%.
-    if(index===6)return Math.max(0,1-v);
+    if(index===6)return Math.max(.01,1-v); // Crusher clamps the applied stall-duration multiplier to 0.01.
     if(index===7)return Math.min(100,level); // percentage points.
     return 1;
   }
@@ -672,7 +672,20 @@
 
     let policy=fullPolicy(levels,held,totalEarned,prestigeCount);
     if(!policy)return {steps,phases,targetLevels:levels,spent,postBootstrapState:postBootstrapInput,stopReason:'no_policy',nodesEvaluated,replans};
-    const baselineEta=policy.eta;
+    const baselineEta=policy.eta;let stallPrerequisiteApplied=false;
+
+    // Rare-ore value is only considered with Stall Recovery already at MAX.
+    // The game applies index 6 directly to crusher stall duration and marks only
+    // this Ingot upgrade as truly maxed. If an imported state already has Rare
+    // Value without Stall MAX, repair that strategic prerequisite before searching.
+    if(levels[5]>0&&levels[6]<INGOT.optimizerCap[6]){
+      const from=levels[6],to=INGOT.optimizerCap[6],cost=incrementalIngotCost(6,from,to),goalRuns=runsToGoal(held,prestigeCount,policy),funding=fundingToBuy(policy,held,cost);
+      if(funding.complete&&!(funding.runs>=goalRuns&&funding.runs>0)){
+        const fundedHeld=held+funding.gain,nextHeld=fundedHeld-cost,nextEarned=totalEarned+funding.gain,nextPrestige=prestigeCount+funding.runs,nextLevels=levels.slice();nextLevels[6]=to;
+        const nextPolicy=fixedPolicy(policy,nextLevels,nextHeld,nextEarned,nextPrestige)||policy,step={index:6,name:INGOT.names[6],fromLevel:from,level:to,levels:nextLevels.slice(),cost,waitSeconds:funding.seconds,prestigesBeforeBuy:funding.runs,buyAt:fundedHeld,effect:ingotEffect(6,to),rateBefore:policy.rate,rateAfter:nextPolicy.rate,hourlyBefore:policy.rate*3600,hourlyAfter:nextPolicy.rate*3600,heldBefore:held,heldAfter:nextHeld,prestigeBefore:prestigeCount,prestigeAfter:nextPrestige,totalEarnedAfter:nextEarned,etaAfter:funding.seconds+nextPolicy.eta,bulk:true,strategicPrerequisite:true,phase:0};
+        levels=nextLevels;held=nextHeld;totalEarned=nextEarned;prestigeCount=nextPrestige;elapsed+=funding.seconds;spent+=cost;steps.push(step);phases.push({phase:0,startLevels:initialLevels.slice(),endLevels:levels.slice(),startHeld:initialHeld,endHeld:held,startPrestigeCount:initialPrestigeCount,endPrestigeCount:prestigeCount,prestigesDuring:funding.runs,spend:cost,waitSeconds:funding.seconds,core:policy.core.slice(),slowdown:policy.slowdown,targetLevel:policy.targetLevel,actualPrestigeLevel:policy.actualPrestigeLevel,prestigeSchedule:(policy.prestigeSchedule||[]).map(x=>({...x})),cycleSeconds:policy.seconds,rateBefore:policy.rate,rateAfter:nextPolicy.rate,etaBefore:baselineEta,etaAfter:elapsed+nextPolicy.eta,changes:[{index:6,name:INGOT.names[6],from,to,cost}],strategicPrerequisite:true});policy=nextPolicy;stallPrerequisiteApplied=true;
+      }
+    }
 
     for(let phaseNo=1;phaseNo<=maxPhases&&steps.length<maxSteps;phaseNo++){
       const phaseStartLevels=levels.slice(),phaseStartHeld=held,phaseStartEarned=totalEarned,phaseStartPrestige=prestigeCount,phaseStartRate=policy.rate,phaseStartEta=finishEta(0,held,prestigeCount,policy);
@@ -686,18 +699,25 @@
           for(let i=0;i<8;i++){
             if(!canOptimizeIngot(i,node.levels[i]))continue;
             for(const targetLevel of bulkTargets(node,i,goalRuns)){
-              const fromLevel=node.levels[i],cost=incrementalIngotCost(i,fromLevel,targetLevel);if(!(cost>0)&&targetLevel>fromLevel)continue;
+              const fromLevel=node.levels[i],baseCost=incrementalIngotCost(i,fromLevel,targetLevel);if(!(baseCost>0)&&targetLevel>fromLevel)continue;
+              const nextLevels=node.levels.slice(),needsStallPrerequisite=i===5&&nextLevels[6]<INGOT.optimizerCap[6],stallFrom=nextLevels[6],stallTo=INGOT.optimizerCap[6],stallCost=needsStallPrerequisite?incrementalIngotCost(6,stallFrom,stallTo):0,cost=baseCost+stallCost;
+              if(steps.length+node.path.length+(needsStallPrerequisite?2:1)>maxSteps)continue;
+              nextLevels[i]=targetLevel;if(needsStallPrerequisite)nextLevels[6]=stallTo;
               const funding=fundingToBuy(node.policy,node.held,cost);if(!funding.complete)continue;const runsBeforeBuy=funding.runs;
               // Ingots only arrive at Prestige. If the factory would satisfy both
               // Ascension conditions on or before the Prestige that funds this buy,
               // buying it cannot shorten the current Ascension.
               if(runsBeforeBuy>=goalRuns&&runsBeforeBuy>0)continue;
-              const wait=funding.seconds,fundedHeld=node.held+funding.gain,nextHeld=fundedHeld-cost,nextEarned=node.totalEarned+funding.gain,nextPrestige=node.prestigeCount+runsBeforeBuy,nextLevels=node.levels.slice();nextLevels[i]=targetLevel;
+              const wait=funding.seconds,fundedHeld=node.held+funding.gain,nextHeld=fundedHeld-cost,nextEarned=node.totalEarned+funding.gain,nextPrestige=node.prestigeCount+runsBeforeBuy;
               const candidate=fixedPolicy(node.policy,nextLevels,nextHeld,nextEarned,nextPrestige);if(!candidate)continue;
               const localElapsed=node.elapsed+wait,eta=finishEta(localElapsed,nextHeld,nextPrestige,candidate),k=keyFor(nextLevels,nextPrestige,nextHeld);
               const prior=seen.get(k);if(prior!==undefined&&prior<=eta+1e-9)continue;seen.set(k,eta);
-              const step={index:i,name:INGOT.names[i],fromLevel,level:targetLevel,levels:nextLevels.slice(),cost,waitSeconds:wait,prestigesBeforeBuy:runsBeforeBuy,buyAt:fundedHeld,effect:ingotEffect(i,targetLevel),rateBefore:node.policy.rate,rateAfter:candidate.rate,hourlyBefore:node.policy.rate*3600,hourlyAfter:candidate.rate*3600,heldBefore:node.held,heldAfter:nextHeld,prestigeBefore:node.prestigeCount,prestigeAfter:nextPrestige,totalEarnedAfter:nextEarned,etaAfter:eta,bulk:targetLevel>fromLevel+1};
-              const child={levels:nextLevels,held:nextHeld,totalEarned:nextEarned,prestigeCount:nextPrestige,elapsed:localElapsed,spent:node.spent+cost,rate:candidate.rate,policy:candidate,path:node.path.concat(step),eta};generated.push(child);
+              const pathSteps=[];
+              if(needsStallPrerequisite){
+                const intermediate=node.levels.slice();intermediate[6]=stallTo;pathSteps.push({index:6,name:INGOT.names[6],fromLevel:stallFrom,level:stallTo,levels:intermediate,cost:stallCost,waitSeconds:wait,prestigesBeforeBuy:runsBeforeBuy,buyAt:fundedHeld,effect:ingotEffect(6,stallTo),rateBefore:node.policy.rate,rateAfter:node.policy.rate,hourlyBefore:node.policy.rate*3600,hourlyAfter:node.policy.rate*3600,heldBefore:node.held,heldAfter:fundedHeld-stallCost,prestigeBefore:node.prestigeCount,prestigeAfter:nextPrestige,totalEarnedAfter:nextEarned,etaAfter:eta,bulk:stallTo>stallFrom+1,strategicPrerequisite:true});
+              }
+              pathSteps.push({index:i,name:INGOT.names[i],fromLevel,level:targetLevel,levels:nextLevels.slice(),cost:baseCost,waitSeconds:needsStallPrerequisite?0:wait,prestigesBeforeBuy:needsStallPrerequisite?0:runsBeforeBuy,buyAt:needsStallPrerequisite?fundedHeld-stallCost:fundedHeld,effect:ingotEffect(i,targetLevel),rateBefore:node.policy.rate,rateAfter:candidate.rate,hourlyBefore:node.policy.rate*3600,hourlyAfter:candidate.rate*3600,heldBefore:needsStallPrerequisite?fundedHeld-stallCost:node.held,heldAfter:nextHeld,prestigeBefore:needsStallPrerequisite?nextPrestige:node.prestigeCount,prestigeAfter:nextPrestige,totalEarnedAfter:nextEarned,etaAfter:eta,bulk:targetLevel>fromLevel+1});
+              const child={levels:nextLevels,held:nextHeld,totalEarned:nextEarned,prestigeCount:nextPrestige,elapsed:localElapsed,spent:node.spent+cost,rate:candidate.rate,policy:candidate,path:node.path.concat(pathSteps),eta};generated.push(child);
               if(!best||eta<best.eta)best=child;
             }
           }
@@ -723,7 +743,7 @@
     const finalPlan=fullPolicy(levels,held,totalEarned,prestigeCount)||policy,plannedRunsRemaining=runsToGoal(held,prestigeCount,finalPlan);
     const plannedEta=elapsed+finalPlan.eta,timeSaved=Math.max(0,baselineEta-plannedEta),converged=stopReason==='marginal_no_gain'||stopReason==='requirement_reached';
     const finalPhasePlan={core:finalPlan.core.slice(),slowdown:finalPlan.slowdown,targetLevel:finalPlan.targetLevel,actualPrestigeLevel:finalPlan.actualPrestigeLevel,seconds:finalPlan.seconds,gain:finalPlan.gain,rate:finalPlan.rate,prestigeSchedule:(finalPlan.prestigeSchedule||[]).map(x=>({...x}))};
-    return {steps,phases,targetLevels:levels.slice(),initialLevels,initialHeld,initialPrestigeCount,finalHeld:held,finalTotalIngotsEarned:totalEarned,finalPrestigeCount:prestigeCount,spent,simulatedWaitSeconds:elapsed,postBootstrapState:postBootstrapInput,baselineEta,plannedEta,timeSaved,bootstrapSeconds:plan.bootstrap&&plan.bootstrap.needed?finite(plan.bootstrap.seconds):0,totalPlannedEta:plannedEta+(plan.bootstrap&&plan.bootstrap.needed?finite(plan.bootstrap.seconds):0),plannedRunsRemaining,stopReason,converged,nodesEvaluated,replans,finalRate:finalPlan.rate,finalTargetLevel:finalPlan.targetLevel,finalActualPrestigeLevel:finalPlan.actualPrestigeLevel,finalCycleSeconds:finalPlan.seconds,finalGain:finalPlan.gain,finalPrestigeSchedule:(finalPlan.prestigeSchedule||[]).map(x=>({...x})),finalPlan:finalPhasePlan};
+    return {steps,phases,targetLevels:levels.slice(),initialLevels,initialHeld,initialPrestigeCount,finalHeld:held,finalTotalIngotsEarned:totalEarned,finalPrestigeCount:prestigeCount,spent,simulatedWaitSeconds:elapsed,postBootstrapState:postBootstrapInput,baselineEta,plannedEta,timeSaved,bootstrapSeconds:plan.bootstrap&&plan.bootstrap.needed?finite(plan.bootstrap.seconds):0,totalPlannedEta:plannedEta+(plan.bootstrap&&plan.bootstrap.needed?finite(plan.bootstrap.seconds):0),plannedRunsRemaining,stopReason,converged,nodesEvaluated,replans,stallPrerequisiteApplied,finalRate:finalPlan.rate,finalTargetLevel:finalPlan.targetLevel,finalActualPrestigeLevel:finalPlan.actualPrestigeLevel,finalCycleSeconds:finalPlan.seconds,finalGain:finalPlan.gain,finalPrestigeSchedule:(finalPlan.prestigeSchedule||[]).map(x=>({...x})),finalPlan:finalPhasePlan};
   }
 
   function completeAscensionState(input,ascensionResult,roadmap){
@@ -822,13 +842,38 @@
     return {steps,targetLevels:levels,spent,heldAfter:held,finalPlan:finalResult.plan};
   }
 
+  function formatShort(v){return Number(v.toFixed(2)).toString()}
   function formatNumber(v){
-    v=finite(v);const a=Math.abs(v);if(a>=1e21)return v.toExponential(3);if(a>=1e12)return (v/1e12).toFixed(a>=1e14?1:2)+'T';if(a>=1e9)return (v/1e9).toFixed(a>=1e11?1:2)+'B';if(a>=1e6)return (v/1e6).toFixed(a>=1e8?1:2)+'M';if(a>=1e3)return (v/1e3).toFixed(a>=1e5?1:2)+'K';return Number(v.toPrecision(5)).toString();
+    v=finite(v);if(v<1000)return formatShort(v);if(!(v>0))return '0';
+    const log=Math.log10(v);
+    if(log<15){
+      let tier=log>=3?Math.floor(log/3):0,scaled=Math.pow(10,log-tier*3);
+      if(scaled>=999.995){tier++;scaled=Math.pow(10,log-tier*3)}
+      if(tier<=4)return formatShort(scaled)+['','K','M','B','T'][tier];
+    }
+    let exponent=Math.floor(log),mantissa=Math.pow(10,log-exponent);
+    if(mantissa>=9.995){mantissa=1;exponent++}
+    return mantissa.toFixed(2)+'e'+exponent;
+  }
+  function parseNumber(value,fallback=0){
+    if(typeof value==='number')return Number.isFinite(value)?value:fallback;
+    const s=String(value??'').trim().replace(/,/g,'');if(!s)return fallback;
+    const match=s.match(/^([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s*([kKmMbBtT])$/);
+    if(match){const factor={k:1e3,m:1e6,b:1e9,t:1e12}[match[2].toLowerCase()],n=Number(match[1])*factor;return Number.isFinite(n)?n:fallback}
+    const n=Number(s);return Number.isFinite(n)?n:fallback;
+  }
+  function quickStartAdvice(input){
+    const totalCore=Math.max(0,finite(input&&input.totalCore,totalCoreForAscension(input&&input.ascensionCount))),held=Math.max(0,finite(input&&input.heldIngots));
+    const needed=Math.max(0,NORMAL_AUTO_UNLOCK_COST-held);
+    if(input&&input.normalAutoUnlocked!==false)return {needed:false,ready:true,runs:0,neededIngots:0};
+    if(needed<=0)return {needed:true,ready:true,runs:0,neededIngots:0,coreIngotLevel:0,gainAtLevel50:0};
+    const maxIngotLevel=maxCoreLevel(1,totalCore),wanted=Math.max(0,Math.ceil(Math.log2(Math.max(1,needed)))),coreIngotLevel=Math.min(maxIngotLevel,wanted),gainAtLevel50=prestigeGain(50,coreIngotLevel),runs=Math.max(1,Math.ceil(needed/Math.max(1,gainAtLevel50)));
+    return {needed:true,ready:false,runs,neededIngots:needed,coreIngotLevel,gainAtLevel50,maxCoreIngotLevel:maxIngotLevel,targetLevel:50};
   }
 
   return {
     TERMINAL_ORES_PER_TOP,MAX_TOP_SPAWN_RATE,NORMAL_AUTO_UNLOCK_COST,OUTER_DAMAGE_FACTOR,ORE_MAX_CRUSH_SECONDS,MAX_ZONE_ORES,EARLY_ORE_VALUE,EARLY_ORE_HP,NORMAL,INGOT,CORE_NAMES,CORE_FEED,SLOWDOWN,ASCENSION_INGOT_REQ,DEFAULT_INGOT_LEVELS,DEFAULT_CORE,A18_VIDEO_CORE,A18_VIDEO_INGOT,DEFAULT_MEASUREMENTS,
     totalCoreForAscension,slowdownLevel,nextAscensionRequirement,coreCost,maxCoreLevel,coreEffect,coreBundleCost,ingotEffect,ingotNextCost,ingotCumulativeCost,ingotBundleCost,inferTotalIngotsEarned,normalEffect,requiredExpLog10,requiredExp,baseOreValueLog10,baseOreValue,baseOreHpLog10,baseOreHp,expectedTerminalPerTop,prestigeBase,prestigeGain,prestigePermanent,
-    topSpawnRate,expectedUsefulExpPerTerminal,expectedRarityValueMultiplier,rankingIncomeLog10,dpsLog10,softCapHpLog,simulateCurve,deriveDpsCalibration,fitCalibration,exactTimingMeasurements,timingResolver,mergePrestigeSchedule,prestigeScheduleFunding,planNormalAutoBootstrap,optimizeNormalAutoBootstrap,paretoCoreCandidates,slowdownCandidates,optimizeFixedCore,optimizeAscension,optimizeIngotUpgrades,completeAscensionState,ascensionSearchMaxLevel,optimizeTargetLevel,optimizeRanking,optimizeRankingIngotUpgrades,formatNumber
+    topSpawnRate,expectedUsefulExpPerTerminal,expectedRarityValueMultiplier,rankingIncomeLog10,dpsLog10,softCapHpLog,simulateCurve,deriveDpsCalibration,fitCalibration,exactTimingMeasurements,timingResolver,mergePrestigeSchedule,prestigeScheduleFunding,planNormalAutoBootstrap,optimizeNormalAutoBootstrap,paretoCoreCandidates,slowdownCandidates,optimizeFixedCore,optimizeAscension,optimizeIngotUpgrades,completeAscensionState,ascensionSearchMaxLevel,optimizeTargetLevel,optimizeRanking,optimizeRankingIngotUpgrades,formatNumber,parseNumber,quickStartAdvice
   };
 });
