@@ -162,15 +162,27 @@ assert.ok(a17Road.steps.some(s=>s.bulk&&s.level>=30),`A17 roadmap must contain a
 assert.ok(a17Road.targetLevels[1]>=30,'A17 fresh EXP target should reach the tens-of-levels regime after the first full Prestige');
 assert.ok(a17Road.plannedEta<a17Road.baselineEta,'A17 bulk roadmap must beat holding the reset Ingot state');
 
-// Selected slowdown and the maximum slowdown that still preserves the 20/s spawn
-// cap are intentionally different concepts. With the user's A17 high-Ingot state,
-// a Core Feed Lv15 near-tie can preserve 20/s through ×100B even when the strict
-// ETA winner chooses a smaller slowdown for packet-granularity reasons.
+// A17 diagnostic regression from the real browser JSON. When 20 top ores/s and
+// destruction throughput are unchanged, higher Slowdown is never worse merely
+// because of EXP overflow: overflow only saturates the extra packet value. The
+// optimizer must therefore keep the largest equally-fast supply-capped Slowdown.
+// The 25-Prestige gate must also be optimized separately from the Ingot target: a
+// few deep high-yield runs plus cheap Lv50 count-only runs beat one AP for all runs.
 const a17HighIngot=[44,47,46,46,0,41,17,41];
-const a17High={...a17Fresh,heldIngots:0,prestigeCount:0,normalAutoUnlocked:false,ingotLevels:a17HighIngot,totalIngotsEarned:M.inferTotalIngotsEarned(0,a17HighIngot,false)};
-const a17HighResult=M.optimizeAscension(a17High,M.DEFAULT_MEASUREMENTS);
-assert.ok(a17HighResult.plan.maxSupplyCappedSlowdown>=1e10);
-assert.ok(a17HighResult.nearAlternatives.some(a=>a.core[4]>=15&&a.maxSupplyCappedSlowdown>=1e11),'A17 near-optimal alternatives should expose the Feed15 / ×100B supply-cap headroom');
+const a17Diagnostic={objective:'ascensionEta',ascensionCount:17,totalCore:M.totalCoreForAscension(17),heldIngots:5.38e15,totalIngotsEarned:5898969488441539,prestigeCount:16,normalAutoUnlocked:true,ingotLevels:a17HighIngot,maxTargetLevel:4750,oneShotMargin:1,strictOneShot:true,dpsCalibration:1,hpCalibration:1,manualClickRate:4};
+const a17HighResult=M.optimizeAscension(a17Diagnostic,M.DEFAULT_MEASUREMENTS);
+assert.ok(a17HighResult.plan,'A17 diagnostic state must produce a plan');
+assert.equal(a17HighResult.plan.slowdown,a17HighResult.plan.maxSupplyCappedSlowdown,'equally-fast A17 plan should use the largest 20/s-capped Slowdown');
+assert.ok(a17HighResult.plan.slowdown>=1e11,'A17 high-Feed route should preserve 20/s at ×100B or higher');
+assert.equal(a17HighResult.plan.totalRuns,9);
+assert.ok(a17HighResult.plan.prestigeSchedule.length>=2,'A17 must use a mixed Prestige schedule');
+assert.equal(a17HighResult.plan.prestigeSchedule.at(-1).targetLevel,50,'remaining Prestige-count-only runs should use the fastest Lv50 target');
+assert.equal(a17HighResult.plan.prestigeSchedule.at(-1).runs,6);
+assert.equal(a17HighResult.plan.prestigeSchedule[0].runs,3);
+assert.ok(a17HighResult.plan.prestigeSchedule[0].targetLevel>=3500,'three deep runs should carry the Ingot requirement');
+assert.ok(a17HighResult.plan.eta<900,'mixed A17 schedule should beat the old 1269s uniform-AP route by a wide margin');
+const fund=M.prestigeScheduleFunding(a17HighResult.plan,5e14);
+assert.ok(fund.complete&&fund.runs>=1&&fund.seconds>0&&fund.gain>=5e14,'roadmap funding must consume the mixed Prestige schedule discretely');
 
 // Overnight ranking is a distinct goal: no Prestige during the sleep run, hence
 // Core Ingot must be zero and the optimizer maximizes the end-of-window score.
