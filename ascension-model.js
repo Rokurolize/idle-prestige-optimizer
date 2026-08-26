@@ -45,11 +45,24 @@
 
   const DEFAULT_INGOT_LEVELS=[24,29,24,29,10,23,17,23];
   const DEFAULT_CORE=[6,9,7,5,6];
+  const A18_VIDEO_CORE=[25,28,22,9,16];
+  const A18_VIDEO_INGOT=[49,49,49,49,0,43,17,43];
+  const A18_VIDEO_TOTAL_INGOTS=3131409116037315;
   const DEFAULT_MEASUREMENTS=[
     {targetLevel:460,seconds:38,slowdown:2000,core:DEFAULT_CORE.slice(),ingot:DEFAULT_INGOT_LEVELS.slice(),totalIngotsEarned:2e9,label:'A7 ×2K Lv460'},
     {targetLevel:695,seconds:51.21,slowdown:2000,core:DEFAULT_CORE.slice(),ingot:DEFAULT_INGOT_LEVELS.slice(),totalIngotsEarned:2e9,label:'A7 ×2K Lv695'},
     {targetLevel:995,seconds:73,slowdown:2000,core:DEFAULT_CORE.slice(),ingot:DEFAULT_INGOT_LEVELS.slice(),totalIngotsEarned:2e9,label:'A7 ×2K Lv995'},
-    {targetLevel:460,seconds:59.4,slowdown:10000,core:DEFAULT_CORE.slice(),ingot:DEFAULT_INGOT_LEVELS.slice(),totalIngotsEarned:2e9,label:'A7 ×10K Lv460'}
+    {targetLevel:460,seconds:59.4,slowdown:10000,core:DEFAULT_CORE.slice(),ingot:DEFAULT_INGOT_LEVELS.slice(),totalIngotsEarned:2e9,label:'A7 ×10K Lv460'},
+    // 30 fps video 2026-08-26 10-03-34.mp4. Complete reset-to-reset run:
+    // reset at 89.5 s, Lv4421 at 316.5 s => 227.0 s. Intermediate
+    // milestones pin the shape rather than only applying a single end-point fudge.
+    {targetLevel:1000,seconds:52,slowdown:1e12,core:A18_VIDEO_CORE.slice(),ingot:A18_VIDEO_INGOT.slice(),totalIngotsEarned:A18_VIDEO_TOTAL_INGOTS,label:'A18 video ×1T Lv1000'},
+    {targetLevel:2000,seconds:101,slowdown:1e12,core:A18_VIDEO_CORE.slice(),ingot:A18_VIDEO_INGOT.slice(),totalIngotsEarned:A18_VIDEO_TOTAL_INGOTS,label:'A18 video ×1T Lv2000'},
+    {targetLevel:2365,seconds:119,slowdown:1e12,core:A18_VIDEO_CORE.slice(),ingot:A18_VIDEO_INGOT.slice(),totalIngotsEarned:A18_VIDEO_TOTAL_INGOTS,label:'A18 video ×1T Lv2365'},
+    {targetLevel:3000,seconds:152,slowdown:1e12,core:A18_VIDEO_CORE.slice(),ingot:A18_VIDEO_INGOT.slice(),totalIngotsEarned:A18_VIDEO_TOTAL_INGOTS,label:'A18 video ×1T Lv3000'},
+    {targetLevel:3500,seconds:177.5,slowdown:1e12,core:A18_VIDEO_CORE.slice(),ingot:A18_VIDEO_INGOT.slice(),totalIngotsEarned:A18_VIDEO_TOTAL_INGOTS,label:'A18 video ×1T Lv3500'},
+    {targetLevel:4000,seconds:202.5,slowdown:1e12,core:A18_VIDEO_CORE.slice(),ingot:A18_VIDEO_INGOT.slice(),totalIngotsEarned:A18_VIDEO_TOTAL_INGOTS,label:'A18 video ×1T Lv4000'},
+    {targetLevel:4420,seconds:227,slowdown:1e12,core:A18_VIDEO_CORE.slice(),ingot:A18_VIDEO_INGOT.slice(),totalIngotsEarned:A18_VIDEO_TOTAL_INGOTS,label:'A18 video ×1T Lv4420'}
   ];
 
   function finite(v,f=0){const n=Number(v);return Number.isFinite(n)?n:f}
@@ -737,8 +750,8 @@
   }
 
   return {
-    TERMINAL_ORES_PER_TOP,MAX_TOP_SPAWN_RATE,NORMAL_AUTO_UNLOCK_COST,OUTER_DAMAGE_FACTOR,ORE_MAX_CRUSH_SECONDS,EARLY_ORE_VALUE,EARLY_ORE_HP,NORMAL,INGOT,CORE_NAMES,CORE_FEED,SLOWDOWN,ASCENSION_INGOT_REQ,DEFAULT_INGOT_LEVELS,DEFAULT_CORE,DEFAULT_MEASUREMENTS,
+    TERMINAL_ORES_PER_TOP,MAX_TOP_SPAWN_RATE,NORMAL_AUTO_UNLOCK_COST,OUTER_DAMAGE_FACTOR,ORE_MAX_CRUSH_SECONDS,EARLY_ORE_VALUE,EARLY_ORE_HP,NORMAL,INGOT,CORE_NAMES,CORE_FEED,SLOWDOWN,ASCENSION_INGOT_REQ,DEFAULT_INGOT_LEVELS,DEFAULT_CORE,A18_VIDEO_CORE,A18_VIDEO_INGOT,DEFAULT_MEASUREMENTS,
     totalCoreForAscension,nextAscensionRequirement,coreCost,maxCoreLevel,coreEffect,coreBundleCost,ingotEffect,ingotNextCost,ingotCumulativeCost,ingotBundleCost,inferTotalIngotsEarned,normalEffect,requiredExpLog10,requiredExp,baseOreValueLog10,baseOreValue,baseOreHpLog10,baseOreHp,expectedTerminalPerTop,prestigeBase,prestigeGain,prestigePermanent,
-    topSpawnRate,expectedUsefulExpPerTerminal,expectedRarityValueMultiplier,rankingIncomeLog10,dpsLog10,softCapHpLog,simulateCurve,deriveDpsCalibration,fitCalibration,mergePrestigeSchedule,prestigeScheduleFunding,planNormalAutoBootstrap,optimizeNormalAutoBootstrap,paretoCoreCandidates,slowdownCandidates,optimizeFixedCore,optimizeAscension,optimizeIngotUpgrades,optimizeRanking,optimizeRankingIngotUpgrades,formatNumber
+    topSpawnRate,expectedUsefulExpPerTerminal,expectedRarityValueMultiplier,rankingIncomeLog10,dpsLog10,softCapHpLog,simulateCurve,deriveDpsCalibration,fitCalibration,exactTimingMeasurements,timingResolver,mergePrestigeSchedule,prestigeScheduleFunding,planNormalAutoBootstrap,optimizeNormalAutoBootstrap,paretoCoreCandidates,slowdownCandidates,optimizeFixedCore,optimizeAscension,optimizeIngotUpgrades,optimizeRanking,optimizeRankingIngotUpgrades,formatNumber
   };
 });
