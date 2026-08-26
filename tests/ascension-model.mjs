@@ -31,7 +31,7 @@ assert.ok(Number.isFinite(M.requiredExpLog10(6000)));
 assert.ok(Number.isFinite(M.baseOreValueLog10(6000)));
 assert.ok(Number.isFinite(M.baseOreHpLog10(6000)));
 const highCore=[22,23,19,9,11],highIngot=[45,45,44,46,0,41,17,40];
-const highCurve=M.simulateCurve({maxTarget:4000,core:highCore,ingot:highIngot,slowdown:1e7,physicalCap:cal.physicalCap,totalIngotsEarned:M.inferTotalIngotsEarned(15.01e12,highIngot,true)});
+const highCurve=M.simulateCurve({maxTarget:4000,core:highCore,ingot:highIngot,slowdown:1e7,physicalCap:cal.physicalCap,totalIngotsEarned:M.inferTotalIngotsEarned(15.01e12,highIngot,true),normalAutoUpdatesPerSecond:cal.normalAutoUpdatesPerSecond,normalAutoCalibration:cal});
 assert.ok(Number.isFinite(highCurve.times[2400])&&highCurve.times[2400]>0,'Lv2400 must remain simulatable');
 assert.ok(Number.isFinite(highCurve.times[3500])&&highCurve.times[3500]>highCurve.times[2400],'high-level time curve must remain monotone and finite');
 const highInput={objective:'ascensionEta',ascensionCount:15,totalCore:M.totalCoreForAscension(15),heldIngots:15.01e12,totalIngotsEarned:M.inferTotalIngotsEarned(15.01e12,highIngot,true),prestigeCount:11,normalAutoUnlocked:true,ingotLevels:highIngot,maxTargetLevel:4000,oneShotMargin:1,strictOneShot:true,dpsCalibration:1,hpCalibration:1,manualClickRate:4};
@@ -42,7 +42,7 @@ assert.equal(highResult.plan.timingValidated,false,'A15 high-level AP is still a
 
 assert.ok(cal.rmse<5,`calibration RMSE too large: ${cal.rmse}`);
 for(const row of M.DEFAULT_MEASUREMENTS){
-  const curve=M.simulateCurve({maxTarget:row.targetLevel,core:row.core,ingot:row.ingot,slowdown:row.slowdown,physicalCap:cal.physicalCap,totalIngotsEarned:row.totalIngotsEarned});
+  const curve=M.simulateCurve({maxTarget:row.targetLevel,core:row.core,ingot:row.ingot,slowdown:row.slowdown,physicalCap:cal.physicalCap,totalIngotsEarned:row.totalIngotsEarned,normalAutoUpdatesPerSecond:cal.normalAutoUpdatesPerSecond,normalAutoCalibration:cal});
   const predicted=cal.intercept+cal.scale*curve.times[row.targetLevel];
   assert.ok(Math.abs(predicted-row.seconds)<10,`${row.label}: global predicted ${predicted}, observed ${row.seconds}`);
 }
@@ -51,7 +51,7 @@ for(const row of M.DEFAULT_MEASUREMENTS){
 // same-config resolver must reproduce its milestones exactly instead of using
 // only the old A7 global physics fit.
 const videoCore=M.A18_VIDEO_CORE,videoIngot=M.A18_VIDEO_INGOT;
-const videoCurve=M.simulateCurve({maxTarget:4420,core:videoCore,ingot:videoIngot,slowdown:1e12,physicalCap:cal.physicalCap,totalIngotsEarned:3131409116037315});
+const videoCurve=M.simulateCurve({maxTarget:4420,core:videoCore,ingot:videoIngot,slowdown:1e12,physicalCap:cal.physicalCap,totalIngotsEarned:3131409116037315,normalAutoUpdatesPerSecond:cal.normalAutoUpdatesPerSecond,normalAutoCalibration:cal});
 const videoTiming=M.timingResolver(videoCurve,cal,videoCore,videoIngot,1e12,M.DEFAULT_MEASUREMENTS);
 assert.equal(videoTiming.points.length,7);
 for(const [level,seconds] of [[1000,52],[2000,101],[2365,119],[3000,152],[3500,177.5],[4000,202.5],[4420,227]]){
@@ -76,9 +76,9 @@ assert.ok(rare0.workRare<1&&rare7.workRare<1);
 assert.ok(Math.abs(rare7.useful/rare0.useful-1.7)<1e-12);
 
 // DPS anchors must be able to recover a known multiplicative calibration.
-const anchorCurve=M.simulateCurve({maxTarget:601,core:a9Core,ingot:a9Ingot,slowdown:1000,physicalCap:cal.physicalCap,totalIngotsEarned:1e9,dpsCalibration:1});
+const anchorCurve=M.simulateCurve({maxTarget:601,core:a9Core,ingot:a9Ingot,slowdown:1000,physicalCap:cal.physicalCap,totalIngotsEarned:1e9,dpsCalibration:1,normalAutoUpdatesPerSecond:cal.normalAutoUpdatesPerSecond,normalAutoCalibration:cal});
 const syntheticObserved=Math.pow(10,anchorCurve.dpsLogAtTarget)*.25;
-const anchor=M.deriveDpsCalibration({level:600,core:a9Core,ingot:a9Ingot,slowdown:1000,totalIngotsEarned:1e9,dps:syntheticObserved},cal.physicalCap);
+const anchor=M.deriveDpsCalibration({level:600,core:a9Core,ingot:a9Ingot,slowdown:1000,totalIngotsEarned:1e9,dps:syntheticObserved,normalAutoUpdatesPerSecond:cal.normalAutoUpdatesPerSecond},cal.physicalCap,cal);
 assert.ok(Math.abs(anchor.calibration-.25)<1e-9,`DPS anchor calibration=${anchor.calibration}`);
 
 // Ascension bootstrap: with Core Ingot Lv9, the first Lv50+ Prestige already
