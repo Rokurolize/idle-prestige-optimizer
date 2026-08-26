@@ -152,6 +152,26 @@ const etaResult24=M.optimizeAscension(etaInput24,M.DEFAULT_MEASUREMENTS);
 assert.ok(etaResult24.plan&&etaResult24.plan.runs>=1);
 assert.ok(etaResult24.plan.runs<=etaResult.plan.runs,'having 24/25 Prestige must not require more remaining runs');
 
+// High-Ascension fresh reset: one full Prestige can finance tens of Ingot levels.
+// The roadmap must see through that capital jump instead of stopping after a few
+// individually-greedy purchases (the old A17 bug stopped around EXP5/Crush3).
+const a17Fresh={objective:'ascensionEta',ascensionCount:17,totalCore:M.totalCoreForAscension(17),heldIngots:0,totalIngotsEarned:0,prestigeCount:0,normalAutoUnlocked:false,ingotLevels:Array(8).fill(0),maxTargetLevel:4750,oneShotMargin:1,strictOneShot:true,dpsCalibration:1,hpCalibration:1,manualClickRate:4};
+const a17FreshResult=M.optimizeAscension(a17Fresh,M.DEFAULT_MEASUREMENTS);
+const a17Road=M.optimizeIngotUpgrades(a17Fresh,a17FreshResult,M.DEFAULT_MEASUREMENTS,192);
+assert.ok(a17Road.steps.some(s=>s.bulk&&s.level>=30),`A17 roadmap must contain a bulk capital jump: ${JSON.stringify(a17Road.targetLevels)}`);
+assert.ok(a17Road.targetLevels[1]>=30,'A17 fresh EXP target should reach the tens-of-levels regime after the first full Prestige');
+assert.ok(a17Road.plannedEta<a17Road.baselineEta,'A17 bulk roadmap must beat holding the reset Ingot state');
+
+// Selected slowdown and the maximum slowdown that still preserves the 20/s spawn
+// cap are intentionally different concepts. With the user's A17 high-Ingot state,
+// a Core Feed Lv15 near-tie can preserve 20/s through ×100B even when the strict
+// ETA winner chooses a smaller slowdown for packet-granularity reasons.
+const a17HighIngot=[44,47,46,46,0,41,17,41];
+const a17High={...a17Fresh,heldIngots:0,prestigeCount:0,normalAutoUnlocked:false,ingotLevels:a17HighIngot,totalIngotsEarned:M.inferTotalIngotsEarned(0,a17HighIngot,false)};
+const a17HighResult=M.optimizeAscension(a17High,M.DEFAULT_MEASUREMENTS);
+assert.ok(a17HighResult.plan.maxSupplyCappedSlowdown>=1e10);
+assert.ok(a17HighResult.nearAlternatives.some(a=>a.core[4]>=15&&a.maxSupplyCappedSlowdown>=1e11),'A17 near-optimal alternatives should expose the Feed15 / ×100B supply-cap headroom');
+
 // Overnight ranking is a distinct goal: no Prestige during the sleep run, hence
 // Core Ingot must be zero and the optimizer maximizes the end-of-window score.
 const rankingInput={ascensionCount:7,totalCore:2186,heldIngots:1e6,normalAutoUnlocked:true,ingotLevels:M.DEFAULT_INGOT_LEVELS.slice(),totalIngotsEarned:M.inferTotalIngotsEarned(1e6,M.DEFAULT_INGOT_LEVELS,true),afkHours:8,dpsCalibration:1,hpCalibration:1,manualClickRate:4};
