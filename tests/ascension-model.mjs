@@ -11,7 +11,7 @@ assert.equal(M.prestigeGain(460,9),40_023_552);
 assert.equal(M.prestigeGain(460,11),160_094_208);
 assert.equal(M.ingotEffect(4,10),1);
 assert.equal(M.ingotEffect(4,11),1,'Gem chance is capped at 1.0%');
-assert.equal(M.ingotEffect(6,17),0,'Stall duration reaches zero at Lv17');
+assert.equal(M.ingotEffect(6,17),.01,'Crusher clamps Stall MAX duration multiplier to 1%');
 assert.equal(M.NORMAL_AUTO_UNLOCK_COST,300);
 assert.equal(M.slowdownLevel(1),0);
 assert.equal(M.slowdownLevel(1e17),21,'VRCW Slowdown ×1e17 is game Lv21');
