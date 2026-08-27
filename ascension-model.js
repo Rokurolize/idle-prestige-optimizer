@@ -620,14 +620,14 @@
     return {complete:need<=0,runs,seconds,gain,remaining:Math.max(0,need)};
   }
 
-  function evaluateCurve(curve,core,cal,input,timing=null){
+  function evaluateCurve(curve,core,cal,input,timing=null,prestigeCore=core){
     const req=Math.max(0,finite(input.nextRequirement)),held=Math.max(0,finite(input.heldIngots)),pcount=Math.max(0,Math.floor(finite(input.prestigeCount))),oneShot=Math.max(0,finite(input.oneShotMargin,1)),strict=input.strictOneShot!==false,objective=input.objective||'ascensionEta';
     const maxTarget=curve.times.length-1,options=[];
     for(let L=50;L<=maxTarget;L++){
       const configuredReach=timing?timing.secondsAt(L):calibratedSeconds(curve.times[L],cal),seconds=actualAutoCycle(configuredReach),actualLevel=timing?timing.levelAt(seconds):levelAtCalibratedTime(curve,cal,seconds);
       const shot=curve.minOneShot[actualLevel];if(strict&&shot<oneShot)continue;
-      const gain=prestigeGain(actualLevel,core[1]);if(!(gain>0))continue;
-      options.push({targetLevel:L,actualPrestigeLevel:actualLevel,configuredReachSeconds:configuredReach,seconds,gain,rate:gain/seconds,oneShotRatio:shot,worstOneShotLevel:curve.worstOneShotLevel[actualLevel],queuePressure:curve.queuePressure[actualLevel]});
+      const gain=prestigeGain(actualLevel,prestigeCore[1]);if(!(gain>0))continue;
+      options.push({targetLevel:L,actualPrestigeLevel:actualLevel,configuredReachSeconds:configuredReach,seconds,gain,rate:gain/seconds,oneShotRatio:shot,worstOneShotLevel:curve.worstOneShotLevel[actualLevel],queuePressure:curve.queuePressure[actualLevel],runCore:core.slice(),prestigeCore:prestigeCore.slice()});
     }
     if(!options.length)return null;
     if(objective==='ingotRate'){
@@ -695,12 +695,14 @@
     return best;
   }
 
-  function optimizeFixedCore(input,core,ingot,cal,slowdowns){
+  function optimizeFixedCore(input,core,ingot,cal,slowdowns,prestigeCore=core){
     let best=null;const maxTarget=Math.max(100,Math.floor(finite(input.maxTargetLevel,2200)));
     for(const slowdown of slowdowns||slowdownCandidates(core,ingot,cal.physicalCap)){
       const curve=simulateCurve({maxTarget,core,ingot,slowdown,physicalCap:cal.physicalCap,totalIngotsEarned:input.totalIngotsEarned,dpsCalibration:input.dpsCalibration,damageBoostMultiplier:input.damageBoostMultiplier,hpCalibration:input.hpCalibration,normalAutoEnabled:true,normalAutoUpdatesPerSecond:input.normalAutoUpdatesPerSecond,normalAutoCalibration:cal});
-      const timing=timingResolver(curve,cal,core,ingot,slowdown,input.measurements||[]),ev=evaluateCurve(curve,core,cal,input,timing);if(!ev)continue;const actual=ev.actualPrestigeLevel;
-      const row={core:core.slice(),ingot:ingot.slice(),slowdown,maxSupplyCappedSlowdown:maxSupplyCappedSlowdown(core,ingot,4),...ev,steadyRuns:ev.runs,bootstrapRuns:0,normalAtTarget:curve.normalAtTarget,topSpawnAtTarget:curve.topSpawnRates[actual],rawTopSpawnAtTarget:curve.rawTopSpawnRates[actual],contactRateAtTarget:curve.contactRates[actual],timingMeasurementCount:timing.points.length,timingValidated:timing.validated&&ev.targetLevel>=timing.minLevel&&ev.targetLevel<=timing.maxLevel,timingMinLevel:timing.minLevel,timingMaxLevel:timing.maxLevel};
+      const timing=timingResolver(curve,cal,core,ingot,slowdown,input.measurements||[]),ev=evaluateCurve(curve,core,cal,input,timing,prestigeCore);if(!ev)continue;const actual=ev.actualPrestigeLevel;
+      const manualCoreReallocation=core.some((v,i)=>v!==prestigeCore[i]);
+      const row={core:core.slice(),runCore:core.slice(),prestigeCore:prestigeCore.slice(),manualCoreReallocation,ingot:ingot.slice(),slowdown,maxSupplyCappedSlowdown:maxSupplyCappedSlowdown(core,ingot,4),...ev,steadyRuns:ev.runs,bootstrapRuns:0,normalAtTarget:curve.normalAtTarget,topSpawnAtTarget:curve.topSpawnRates[actual],rawTopSpawnAtTarget:curve.rawTopSpawnRates[actual],contactRateAtTarget:curve.contactRates[actual],timingMeasurementCount:timing.points.length,timingValidated:timing.validated&&ev.targetLevel>=timing.minLevel&&ev.targetLevel<=timing.maxLevel,timingMinLevel:timing.minLevel,timingMaxLevel:timing.maxLevel};
+      row.prestigeSchedule=(row.prestigeSchedule||[]).map(x=>({...x,runCore:core.slice(),prestigeCore:prestigeCore.slice()}));
       const etaTie=best&&Math.abs(row.eta-best.eta)<1e-9,rateTol=best?Math.max(1,Math.abs(best.rate))*1e-12:0,rateTie=best&&Math.abs(row.rate-best.rate)<=rateTol;
       // With the same completion time and throughput, the larger Slowdown weakly
       // dominates while 20 top ores/s and DPS throughput are unchanged: it gives
@@ -714,35 +716,34 @@
   function optimizeAscension(input,measurements){
     const a=Math.max(0,Math.floor(finite(input.ascensionCount,7))),totalCore=Math.max(0,finite(input.totalCore,totalCoreForAscension(a))),ingot=(input.ingotLevels||Array(8).fill(0)).map(x=>Math.max(0,Math.floor(finite(x))));
     const cal=fitCalibration(measurements,input.normalAutoUpdatesPerSecond),base={...input,measurements:measurements||[],ascensionCount:a,totalCore,nextRequirement:finite(input.nextRequirement,nextAscensionRequirement(a)),ingotLevels:ingot};
-    const bootstrap=optimizeNormalAutoBootstrap(base,totalCore,ingot,cal);if(!bootstrap)return {plan:null,calibration:cal,ascensionCount:a,totalCore,nextRequirement:base.nextRequirement,strictFallback:false};
-    const steadyBase=bootstrap.postState||{...base,normalAutoUnlocked:true};
-    const absoluteMax=maxCoreLevel(1,totalCore);
-    function search(searchBase){
+    const bootstrap=optimizeNormalAutoBootstrap(base,totalCore,ingot,cal);if(!bootstrap)return {plan:null,fixedPlan:null,manualPlan:null,calibration:cal,ascensionCount:a,totalCore,nextRequirement:base.nextRequirement,strictFallback:false};
+    const steadyBase=bootstrap.postState||{...base,normalAutoUnlocked:true},absoluteMax=maxCoreLevel(1,totalCore);
+    const maxPrestigeCore=(()=>{const used=coreCost(1,absoluteMax),left=Math.max(0,totalCore-used);return [maxCoreLevel(0,left),absoluteMax,0,0,0]})();
+    function choose(selected,row){return !selected||row.eta<selected.eta-1e-9||(Math.abs(row.eta-selected.eta)<1e-9&&row.rate>selected.rate)?row:selected}
+    function searchFixed(searchBase){
       let selected=null,selectedFrontier=0,selectedIngotLevel=absoluteMax,backedOff=0,candidatePool=[];
       for(let il=absoluteMax;il>=0&&!selected;il--){
         const frontier=paretoCoreCandidates(totalCore,il);selectedFrontier=frontier.length;
-        for(const cand of frontier){
-          const row=optimizeFixedCore(searchBase,cand.core,ingot,cal);
-          if(!row)continue;row.coreUsed=cand.used;row.coreLeft=cand.left;row.frontierCount=frontier.length;candidatePool.push(row);
-          if(!selected||row.eta<selected.eta-1e-9||(Math.abs(row.eta-selected.eta)<1e-9&&row.rate>selected.rate))selected=row;
-        }
+        for(const cand of frontier){const row=optimizeFixedCore(searchBase,cand.core,ingot,cal);if(!row)continue;row.coreUsed=cand.used;row.coreLeft=cand.left;row.frontierCount=frontier.length;row.strategyMode='fixed';candidatePool.push(row);selected=choose(selected,row)}
         if(selected){selectedIngotLevel=il;backedOff=absoluteMax-il}
       }
-      candidatePool.sort((a,b)=>a.eta-b.eta||b.rate-a.rate);
-      return {selected,selectedFrontier,selectedIngotLevel,backedOff,candidatePool};
+      candidatePool.sort((x,y)=>x.eta-y.eta||y.rate-x.rate);return {selected,selectedFrontier,selectedIngotLevel,backedOff,candidatePool};
     }
-    let found=search(steadyBase),strictFallback=false;
-    if(!found.selected&&steadyBase.strictOneShot!==false){found=search({...steadyBase,strictOneShot:false});strictFallback=!!found.selected}
-    const {selected,selectedFrontier,selectedIngotLevel,backedOff}=found;
+    function searchManual(searchBase){
+      let selected=null,candidatePool=[];const frontier=paretoCoreCandidates(totalCore,0);
+      for(const cand of frontier){const row=optimizeFixedCore(searchBase,cand.core,ingot,cal,undefined,maxPrestigeCore);if(!row)continue;row.coreUsed=cand.used;row.coreLeft=cand.left;row.frontierCount=frontier.length;row.strategyMode='manual';candidatePool.push(row);selected=choose(selected,row)}
+      candidatePool.sort((x,y)=>x.eta-y.eta||y.rate-x.rate);return {selected,selectedFrontier:frontier.length,selectedIngotLevel:absoluteMax,backedOff:0,candidatePool};
+    }
+    function withFallback(searcher){let found=searcher(steadyBase),strictFallback=false;if(!found.selected&&steadyBase.strictOneShot!==false){found=searcher({...steadyBase,strictOneShot:false});strictFallback=!!found.selected}return {found,strictFallback}}
+    function finalize(selected,mode){
+      if(!selected)return null;selected.bootstrap=bootstrap;selected.bootstrapRuns=bootstrap.prestigePerformed?1:0;selected.steadyRuns=selected.runs;selected.runs+=selected.bootstrapRuns;selected.eta+=bootstrap.seconds;selected.strategyMode=mode;
+      const same=(x,y)=>Array.isArray(x)&&Array.isArray(y)&&x.length===y.length&&x.every((v,i)=>Math.floor(finite(v))===Math.floor(finite(y[i])));selected.slowdownValidated=(measurements||[]).some(m=>same(m.core,selected.core)&&same(m.ingot,selected.ingot)&&finite(m.slowdown)===selected.slowdown);return selected;
+    }
+    const fixedSearch=withFallback(searchFixed),manualSearch=withFallback(searchManual),fixedPlan=finalize(fixedSearch.found.selected,'fixed'),manualPlan=finalize(manualSearch.found.selected,'manual');
+    const recommendedMode=manualPlan&&(!fixedPlan||manualPlan.eta<fixedPlan.eta-1e-9)?'manual':'fixed',selected=recommendedMode==='manual'?manualPlan:fixedPlan,recommendedSearch=recommendedMode==='manual'?manualSearch:fixedSearch;
     let nearAlternatives=[];
-    if(selected){
-      const seenAlt=new Set();
-      nearAlternatives=(found.candidatePool||[]).filter(x=>x!==selected&&x.eta<=selected.eta*1.005).filter(x=>{const k=x.core.join(',')+'|'+x.slowdown;if(seenAlt.has(k))return false;seenAlt.add(k);return true}).slice(0,8).map(x=>({core:x.core.slice(),slowdown:x.slowdown,maxSupplyCappedSlowdown:x.maxSupplyCappedSlowdown,targetLevel:x.targetLevel,actualPrestigeLevel:x.actualPrestigeLevel,seconds:x.seconds,gain:x.gain,runs:x.runs,rate:x.rate,eta:x.eta,prestigeSchedule:(x.prestigeSchedule||[]).map(y=>({...y})),topSpawnAtTarget:x.topSpawnAtTarget,rawTopSpawnAtTarget:x.rawTopSpawnAtTarget,coreUsed:x.coreUsed,coreLeft:x.coreLeft}));
-      selected.bootstrap=bootstrap;selected.bootstrapRuns=bootstrap.prestigePerformed?1:0;selected.steadyRuns=selected.runs;selected.runs+=selected.bootstrapRuns;selected.eta+=bootstrap.seconds;nearAlternatives=nearAlternatives.map(x=>({...x,eta:x.eta+bootstrap.seconds}));
-      const same=(x,y)=>Array.isArray(x)&&Array.isArray(y)&&x.length===y.length&&x.every((v,i)=>Math.floor(finite(v))===Math.floor(finite(y[i])));
-      selected.slowdownValidated=(measurements||[]).some(m=>same(m.core,selected.core)&&same(m.ingot,selected.ingot)&&finite(m.slowdown)===selected.slowdown);
-    }
-    return {plan:selected,nearAlternatives,calibration:cal,ascensionCount:a,totalCore,nextRequirement:base.nextRequirement,absoluteMaxIngotLevel:absoluteMax,selectedIngotLevel,backedOff,frontierCount:selectedFrontier,strictFallback};
+    if(selected){const seenAlt=new Set();nearAlternatives=(recommendedSearch.found.candidatePool||[]).filter(x=>x!==recommendedSearch.found.selected&&x.eta+bootstrap.seconds<=selected.eta*1.005).filter(x=>{const k=x.core.join(',')+'|'+x.prestigeCore.join(',')+'|'+x.slowdown;if(seenAlt.has(k))return false;seenAlt.add(k);return true}).slice(0,8).map(x=>({core:x.core.slice(),runCore:x.runCore.slice(),prestigeCore:x.prestigeCore.slice(),manualCoreReallocation:x.manualCoreReallocation,slowdown:x.slowdown,maxSupplyCappedSlowdown:x.maxSupplyCappedSlowdown,targetLevel:x.targetLevel,actualPrestigeLevel:x.actualPrestigeLevel,seconds:x.seconds,gain:x.gain,runs:x.runs,rate:x.rate,eta:x.eta+bootstrap.seconds,prestigeSchedule:(x.prestigeSchedule||[]).map(y=>({...y})),topSpawnAtTarget:x.topSpawnAtTarget,rawTopSpawnAtTarget:x.rawTopSpawnAtTarget,coreUsed:x.coreUsed,coreLeft:x.coreLeft}));}
+    return {plan:selected,fixedPlan,manualPlan,recommendedMode,nearAlternatives,calibration:cal,ascensionCount:a,totalCore,nextRequirement:base.nextRequirement,absoluteMaxIngotLevel:absoluteMax,selectedIngotLevel:recommendedSearch.found.selectedIngotLevel,backedOff:recommendedSearch.found.backedOff,frontierCount:recommendedSearch.found.selectedFrontier,strictFallback:recommendedSearch.strictFallback,fixedStrictFallback:fixedSearch.strictFallback,manualStrictFallback:manualSearch.strictFallback};
   }
 
   function optimizeSingularity(input,measurements){
@@ -778,7 +779,7 @@
     }
     function fixedPolicy(policy,stateLevels,stateHeld,stateEarned,statePrestige){
       nodesEvaluated++;
-      return optimizeFixedCore({...postBootstrapInput,objective:'ascensionEta',normalAutoUnlocked:true,heldIngots:stateHeld,totalIngotsEarned:stateEarned,prestigeCount:statePrestige,ingotLevels:stateLevels.slice(),nextRequirement:req},policy.core,stateLevels,cal,[policy.slowdown]);
+      return optimizeFixedCore({...postBootstrapInput,objective:'ascensionEta',normalAutoUnlocked:true,heldIngots:stateHeld,totalIngotsEarned:stateEarned,prestigeCount:statePrestige,ingotLevels:stateLevels.slice(),nextRequirement:req},policy.core,stateLevels,cal,[policy.slowdown],policy.prestigeCore||policy.core);
     }
     function runsToGoal(stateHeld,statePrestige,policy){return Math.max(0,Math.floor(finite(policy&&policy.totalRuns,policy&&policy.runs||0)))}
     function finishEta(elapsedLocal,stateHeld,statePrestige,policy){return elapsedLocal+Math.max(0,finite(policy&&policy.eta))}
@@ -830,7 +831,7 @@
       if(funding.complete&&!(funding.runs>=goalRuns&&funding.runs>0)){
         const fundedHeld=held+funding.gain,nextHeld=fundedHeld-cost,nextEarned=totalEarned+funding.gain,nextPrestige=prestigeCount+funding.runs,nextLevels=levels.slice();nextLevels[6]=to;
         const nextPolicy=fixedPolicy(policy,nextLevels,nextHeld,nextEarned,nextPrestige)||policy,step={index:6,name:INGOT.names[6],fromLevel:from,level:to,levels:nextLevels.slice(),cost,waitSeconds:funding.seconds,prestigesBeforeBuy:funding.runs,buyAt:fundedHeld,effect:ingotEffect(6,to),rateBefore:policy.rate,rateAfter:nextPolicy.rate,hourlyBefore:policy.rate*3600,hourlyAfter:nextPolicy.rate*3600,heldBefore:held,heldAfter:nextHeld,prestigeBefore:prestigeCount,prestigeAfter:nextPrestige,totalEarnedAfter:nextEarned,etaAfter:funding.seconds+nextPolicy.eta,bulk:true,strategicPrerequisite:true,phase:0};
-        levels=nextLevels;held=nextHeld;totalEarned=nextEarned;prestigeCount=nextPrestige;elapsed+=funding.seconds;spent+=cost;steps.push(step);phases.push({phase:0,startLevels:initialLevels.slice(),endLevels:levels.slice(),startHeld:initialHeld,endHeld:held,startPrestigeCount:initialPrestigeCount,endPrestigeCount:prestigeCount,prestigesDuring:funding.runs,spend:cost,waitSeconds:funding.seconds,core:policy.core.slice(),slowdown:policy.slowdown,targetLevel:policy.targetLevel,actualPrestigeLevel:policy.actualPrestigeLevel,prestigeSchedule:(policy.prestigeSchedule||[]).map(x=>({...x})),cycleSeconds:policy.seconds,rateBefore:policy.rate,rateAfter:nextPolicy.rate,etaBefore:baselineEta,etaAfter:elapsed+nextPolicy.eta,changes:[{index:6,name:INGOT.names[6],from,to,cost}],strategicPrerequisite:true});policy=nextPolicy;stallPrerequisiteApplied=true;
+        levels=nextLevels;held=nextHeld;totalEarned=nextEarned;prestigeCount=nextPrestige;elapsed+=funding.seconds;spent+=cost;steps.push(step);phases.push({phase:0,startLevels:initialLevels.slice(),endLevels:levels.slice(),startHeld:initialHeld,endHeld:held,startPrestigeCount:initialPrestigeCount,endPrestigeCount:prestigeCount,prestigesDuring:funding.runs,spend:cost,waitSeconds:funding.seconds,core:policy.core.slice(),prestigeCore:(policy.prestigeCore||policy.core).slice(),manualCoreReallocation:!!policy.manualCoreReallocation,slowdown:policy.slowdown,targetLevel:policy.targetLevel,actualPrestigeLevel:policy.actualPrestigeLevel,prestigeSchedule:(policy.prestigeSchedule||[]).map(x=>({...x})),cycleSeconds:policy.seconds,rateBefore:policy.rate,rateAfter:nextPolicy.rate,etaBefore:baselineEta,etaAfter:elapsed+nextPolicy.eta,changes:[{index:6,name:INGOT.names[6],from,to,cost}],strategicPrerequisite:true});policy=nextPolicy;stallPrerequisiteApplied=true;
       }
     }
 
@@ -879,7 +880,7 @@
       levels=best.levels.slice();held=best.held;totalEarned=best.totalEarned;prestigeCount=best.prestigeCount;elapsed+=best.elapsed;spent+=best.spent;
       const phaseSteps=best.path.map(x=>({...x,phase:phaseNo}));steps.push(...phaseSteps);
       const fixedAfter=fixedPolicy(policy,levels,held,totalEarned,prestigeCount)||best.policy;
-      const phase={phase:phaseNo,startLevels:phaseStartLevels,endLevels:levels.slice(),startHeld:phaseStartHeld,endHeld:held,startPrestigeCount:phaseStartPrestige,endPrestigeCount:prestigeCount,prestigesDuring:prestigeCount-phaseStartPrestige,spend:best.spent,waitSeconds:best.elapsed,core:policy.core.slice(),slowdown:policy.slowdown,targetLevel:policy.targetLevel,actualPrestigeLevel:policy.actualPrestigeLevel,prestigeSchedule:(policy.prestigeSchedule||[]).map(x=>({...x})),cycleSeconds:policy.seconds,rateBefore:phaseStartRate,rateAfter:fixedAfter.rate,etaBefore:elapsed-best.elapsed+phaseStartEta,etaAfter:elapsed+finishEta(0,held,prestigeCount,fixedAfter),changes:aggregateChanges(best.path,phaseStartLevels)};
+      const phase={phase:phaseNo,startLevels:phaseStartLevels,endLevels:levels.slice(),startHeld:phaseStartHeld,endHeld:held,startPrestigeCount:phaseStartPrestige,endPrestigeCount:prestigeCount,prestigesDuring:prestigeCount-phaseStartPrestige,spend:best.spent,waitSeconds:best.elapsed,core:policy.core.slice(),prestigeCore:(policy.prestigeCore||policy.core).slice(),manualCoreReallocation:!!policy.manualCoreReallocation,slowdown:policy.slowdown,targetLevel:policy.targetLevel,actualPrestigeLevel:policy.actualPrestigeLevel,prestigeSchedule:(policy.prestigeSchedule||[]).map(x=>({...x})),cycleSeconds:policy.seconds,rateBefore:phaseStartRate,rateAfter:fixedAfter.rate,etaBefore:elapsed-best.elapsed+phaseStartEta,etaAfter:elapsed+finishEta(0,held,prestigeCount,fixedAfter),changes:aggregateChanges(best.path,phaseStartLevels)};
       phases.push(phase);
 
       policy=fullPolicy(levels,held,totalEarned,prestigeCount);if(!policy){stopReason='replan_failed';break}
@@ -889,7 +890,7 @@
 
     const finalPlan=fullPolicy(levels,held,totalEarned,prestigeCount)||policy,plannedRunsRemaining=runsToGoal(held,prestigeCount,finalPlan);
     const plannedEta=elapsed+finalPlan.eta,timeSaved=Math.max(0,baselineEta-plannedEta),converged=stopReason==='marginal_no_gain'||stopReason==='requirement_reached';
-    const finalPhasePlan={core:finalPlan.core.slice(),slowdown:finalPlan.slowdown,targetLevel:finalPlan.targetLevel,actualPrestigeLevel:finalPlan.actualPrestigeLevel,seconds:finalPlan.seconds,gain:finalPlan.gain,rate:finalPlan.rate,prestigeSchedule:(finalPlan.prestigeSchedule||[]).map(x=>({...x}))};
+    const finalPhasePlan={core:finalPlan.core.slice(),runCore:(finalPlan.runCore||finalPlan.core).slice(),prestigeCore:(finalPlan.prestigeCore||finalPlan.core).slice(),manualCoreReallocation:!!finalPlan.manualCoreReallocation,strategyMode:finalPlan.strategyMode||'fixed',slowdown:finalPlan.slowdown,targetLevel:finalPlan.targetLevel,actualPrestigeLevel:finalPlan.actualPrestigeLevel,seconds:finalPlan.seconds,gain:finalPlan.gain,rate:finalPlan.rate,prestigeSchedule:(finalPlan.prestigeSchedule||[]).map(x=>({...x}))};
     return {steps,phases,targetLevels:levels.slice(),initialLevels,initialHeld,initialPrestigeCount,finalHeld:held,finalTotalIngotsEarned:totalEarned,finalPrestigeCount:prestigeCount,spent,simulatedWaitSeconds:elapsed,postBootstrapState:postBootstrapInput,baselineEta,plannedEta,timeSaved,bootstrapSeconds:plan.bootstrap&&plan.bootstrap.needed?finite(plan.bootstrap.seconds):0,totalPlannedEta:plannedEta+(plan.bootstrap&&plan.bootstrap.needed?finite(plan.bootstrap.seconds):0),plannedRunsRemaining,stopReason,converged,nodesEvaluated,replans,stallPrerequisiteApplied,finalRate:finalPlan.rate,finalTargetLevel:finalPlan.targetLevel,finalActualPrestigeLevel:finalPlan.actualPrestigeLevel,finalCycleSeconds:finalPlan.seconds,finalGain:finalPlan.gain,finalPrestigeSchedule:(finalPlan.prestigeSchedule||[]).map(x=>({...x})),finalPlan:finalPhasePlan};
   }
 
