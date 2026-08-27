@@ -72,6 +72,7 @@ grep -q '上に表示した追加購入を実行した後は' "$page"
 grep -q '固定★（無操作）' "$page"
 grep -q '手動★再配分' "$page"
 grep -q 'Prestige直前' "$page"
+grep -q '20 top/sを維持できる範囲だけを候補' "$page"
 # Internal/model-only state must not be requested from the user.
 ! grep -q 'id="totalEarned"' "$page"
 ! grep -q 'id="maxTarget"' "$page"

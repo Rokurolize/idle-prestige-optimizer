@@ -510,7 +510,7 @@
     const maxTarget=Math.max(100,Math.floor(finite(input.maxTargetLevel,2200))),needed=NORMAL_AUTO_UNLOCK_COST-held;
     let guaranteedLevel=50;while(guaranteedLevel<maxTarget&&prestigeGain(guaranteedLevel,core[1])<needed)guaranteedLevel++;
     if(prestigeGain(guaranteedLevel,core[1])<needed)return null;
-    const slowdowns=slowdown==null?[...new Set([...slowdownCandidates(core,ingot,cal.physicalCap,1),...slowdownCandidates(core,ingot,cal.physicalCap,4)])].sort((a,b)=>a-b):[Math.max(1,finite(slowdown,1))];
+    const slowdowns=slowdown==null?[...new Set([...progressionSlowdownCandidates(core,ingot,cal.physicalCap,1),...progressionSlowdownCandidates(core,ingot,cal.physicalCap,4)])].sort((a,b)=>a-b):[Math.max(1,finite(slowdown,1))];
     // Before the 300▲ unlock the user is present and manually buys normal
     // upgrades.  One-shot is not a hard requirement here; actual DPS/HP kill
     // throughput is already part of simulateCurve.
@@ -592,6 +592,12 @@
     const indices=[nearestSlowdownIndex(spawnBoundary),nearestSlowdownIndex(contactBoundary)],set=new Set([1]);
     for(const idx of indices)for(let d=-6;d<=5;d++){const i=idx+d;if(i>=0&&i<SLOWDOWN.length)set.add(SLOWDOWN[i])}
     return [...set].sort((a,b)=>a-b);
+  }
+  function progressionSlowdownCandidates(core,ingot,physicalCap,normalFeed=4){
+    const cap=maxSupplyCappedSlowdown(core,ingot,normalFeed);
+    const candidates=slowdownCandidates(core,ingot,physicalCap,normalFeed).filter(x=>x<=cap+Math.max(1,cap)*1e-12);
+    if(!candidates.some(x=>x===cap))candidates.push(cap);
+    return [...new Set(candidates)].sort((a,b)=>a-b);
   }
 
   function mergePrestigeSchedule(parts){
@@ -697,7 +703,7 @@
 
   function optimizeFixedCore(input,core,ingot,cal,slowdowns,prestigeCore=core){
     let best=null;const maxTarget=Math.max(100,Math.floor(finite(input.maxTargetLevel,2200)));
-    for(const slowdown of slowdowns||slowdownCandidates(core,ingot,cal.physicalCap)){
+    for(const slowdown of slowdowns||progressionSlowdownCandidates(core,ingot,cal.physicalCap)){
       const curve=simulateCurve({maxTarget,core,ingot,slowdown,physicalCap:cal.physicalCap,totalIngotsEarned:input.totalIngotsEarned,dpsCalibration:input.dpsCalibration,damageBoostMultiplier:input.damageBoostMultiplier,hpCalibration:input.hpCalibration,normalAutoEnabled:true,normalAutoUpdatesPerSecond:input.normalAutoUpdatesPerSecond,normalAutoCalibration:cal});
       const timing=timingResolver(curve,cal,core,ingot,slowdown,input.measurements||[]),ev=evaluateCurve(curve,core,cal,input,timing,prestigeCore);if(!ev)continue;const actual=ev.actualPrestigeLevel;
       const manualCoreReallocation=core.some((v,i)=>v!==prestigeCore[i]);
@@ -924,7 +930,7 @@
     // A no-Prestige deep run gets no benefit from Core Ingot, so pin it to zero
     // and spend the remaining Core only on progression-affecting upgrades.
     for(const cand of paretoCoreCandidates(totalCore,0)){
-      for(const slowdown of slowdownCandidates(cand.core,ingot,cal.physicalCap)){
+      for(const slowdown of progressionSlowdownCandidates(cand.core,ingot,cal.physicalCap)){
         const curve=simulateCurve({maxTarget:target,core:cand.core,ingot,slowdown,physicalCap:cal.physicalCap,totalIngotsEarned:totalEarned,dpsCalibration:input&&input.dpsCalibration,damageBoostMultiplier:input&&input.damageBoostMultiplier,hpCalibration:input&&input.hpCalibration,normalAutoEnabled:true,normalAutoUpdatesPerSecond:input&&input.normalAutoUpdatesPerSecond,normalAutoCalibration:cal});
         const timing=timingResolver(curve,cal,cand.core,ingot,slowdown,measurements||[]),seconds=timing.secondsAt(target),row={targetLevel:target,seconds,core:cand.core.slice(),coreUsed:cand.used,coreLeft:cand.left,slowdown,maxSupplyCappedSlowdown:maxSupplyCappedSlowdown(cand.core,ingot,4),topSpawnAtTarget:curve.topSpawnRates[target],rawTopSpawnAtTarget:curve.rawTopSpawnRates[target],contactRateAtTarget:curve.contactRates[target],queuePressureAtTarget:curve.queuePressure[target],timingMeasurementCount:timing.points.length,timingValidated:timing.validated&&target>=timing.minLevel&&target<=timing.maxLevel,timingMinLevel:timing.minLevel,timingMaxLevel:timing.maxLevel};
         const tie=best&&Math.abs(row.seconds-best.seconds)<1e-9;
