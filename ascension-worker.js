@@ -12,6 +12,11 @@ self.onmessage=function(event){
       self.postMessage({type:'ingot',id,goal,ingotPlan});
       return;
     }
+    if(goal==='singularity'){
+      const result=model.optimizeSingularity(msg.input||{},msg.measurements||[]);
+      self.postMessage({type:'result',id,goal,result});
+      return;
+    }
     const result=model.optimizeAscension(msg.input||{},msg.measurements||[]);
     self.postMessage({type:'result',id,goal,result});
     const ingotPlan=model.optimizeIngotUpgrades(msg.input||{},result,msg.measurements||[],Number(msg.maxIngotSteps)||192);
