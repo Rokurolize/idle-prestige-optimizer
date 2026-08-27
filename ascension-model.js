@@ -15,6 +15,8 @@
   const OUTER_DAMAGE_FACTOR=.55;
   const ORE_MAX_CRUSH_SECONDS=30;
   const MAX_ZONE_ORES=120;
+  const ORE_TIER_HP_MULTIPLIER=1.7;
+  const ORICHALCUM_HP_MULTIPLIER=5;
   const EARLY_ORE_VALUE=[.34362900744795793,.7815852169404028,1.3105059329561746,1.8874439058471755,2.6336507240647125,4.334184788359374,6.739939118696889,8.64958853566101,12.614196244526408,17.902398308642,22.353805455655674,29.87797330570841,36.47543009067704,44.98144004030895,54.27695961817204,71.38908553339408,83.15713010178953,98.80675152551989,121.69951279637111,155.74190634993846,179.04792344125858,226.8861523027345,274.21650214110684,338.40610263604486,391.76187426309815,478.9543738264224,544.5730505335307,647.0168185774196,836.2705248334939,1128.965208525217];
   const EARLY_ORE_HP=[3.1817500689625735,6.700833478569984,10.403218616288283,13.873276162764121,17.9241842965422,27.312716109228543,39.32689740411166,46.73103549562652,63.102386425178636,82.92274317661239,95.87164000899627,118.64954280154458,134.11939945868374,153.14427918138173,171.10361290397313,208.37793555095277,224.74790357817605,247.26293639376246,281.99245297401126,334.1414682506974,355.68899086797006,417.335538934803,467.0326151928781,533.664181259924,572.0424810465383,647.5547612500976,681.733675505318,749.9812678778437,897.5484077181289,1121.9355096476613];
 
@@ -229,7 +231,7 @@
     const ingotFeed=ingotEffect(3,ingot[3]),expMult=ingotEffect(1,ingot[1]),refining=ingotEffect(0,ingot[0]),coreIncome=coreEffect(0,core[0]);
     const prestige=prestigePermanent(totalEarned),normalAutoEnabled=opts.normalAutoEnabled!==false,manualMode=opts.normalAutoMode==='manual',manualClickRate=Math.max(.1,finite(opts.manualClickRate,4)),manualCal=opts.manualCalibration||null,autoCal=opts.normalAutoCalibration||null,frameLimitedAuto=!!autoCal||Number.isFinite(Number(opts.normalAutoUpdatesPerSecond)),autoUpdatesPerSecond=Math.min(100,Math.max(.1,finite(opts.normalAutoUpdatesPerSecond,DEFAULT_NORMAL_AUTO_UPDATES_PER_SECOND))),autoWallScale=Math.max(.01,finite(autoCal&&autoCal.scale,1)),normalLevels=[0,0,0,0,0,0,0,0];
     const times=new Float64Array(target+1),minOneShot=new Float64Array(target+1),worstOneShotLevel=new Int32Array(target+1),queuePressure=new Float64Array(target+1),topSpawnRates=new Float64Array(target+1),rawTopSpawnRates=new Float64Array(target+1),contactRates=new Float64Array(target+1),dpsKillRates=new Float64Array(target+1),normalRareLevels=new Int16Array(target+1),normalAtTarget=[];
-    let cashLog=-Infinity,rawSeconds=0,minShot=Infinity,worst=1,lastPressure=0,lastTopSpawn=0,lastRawTopSpawn=0,lastContactRate=0,lastDpsKillRate=0,lastDpsLog=-Infinity,lastHpSmallLog=-Infinity,lastHpLargeLog=-Infinity,manualClicks=0,autoTickCarry=0,autoPurchases=0;
+    let cashLog=-Infinity,rawSeconds=0,minShot=Infinity,worst=1,lastPressure=0,lastTopSpawn=0,lastRawTopSpawn=0,lastContactRate=0,lastDpsKillRate=0,lastDpsLog=-Infinity,lastHpSmallLog=-Infinity,lastHpLargeLog=-Infinity,lastNormalUsed=normalLevels.slice(),manualClicks=0,autoTickCarry=0,autoPurchases=0;
     times[1]=0;minOneShot[1]=Infinity;
     for(let L=1;L<target;L++){
       if(normalAutoEnabled){
@@ -237,6 +239,7 @@
           const elapsed=manualCal?calibratedSeconds(rawSeconds,manualCal):rawSeconds,available=Math.max(0,Math.floor(elapsed*manualClickRate)-manualClicks),buy=buyNormalAutoLimited(cashLog,normalLevels,L,costReduction,available);cashLog=buy.cashLog;manualClicks+=buy.bought;
         }else if(!frameLimitedAuto)cashLog=buyNormalAuto(cashLog,normalLevels,L,costReduction);
       }
+      lastNormalUsed=normalLevels.slice();
       const feed=normalEffect(7,normalLevels[7]);
       const spawn=topSpawnRate(core,ingot,feed,slowdown),topSpawn=spawn.actual;
       const terminalPerTop=expectedTerminalPerTop(L),terminalSupply=topSpawn*terminalPerTop;
@@ -256,7 +259,7 @@
       const levelRawSeconds=1/Math.max(1e-12,processed*useful);
       rawSeconds+=levelRawSeconds;
       times[L+1]=rawSeconds;
-      const tier=L>=15?2:(L>=5?1:0),hpLargestNormalLog=hpSmallLog+tier*Math.log10(1.7),shot=pow10(dpsLog-hpLargestNormalLog);
+      const tier=L>=15?2:(L>=5?1:0),hpLargestNormalLog=hpSmallLog+tier*Math.log10(ORE_TIER_HP_MULTIPLIER),shot=pow10(dpsLog-hpLargestNormalLog);
       if(shot<minShot){minShot=shot;worst=L}
       minOneShot[L+1]=minShot;worstOneShotLevel[L+1]=worst;
       lastPressure=terminalSupply/Math.max(1e-12,Math.min(contactRate,dpsKillRate));queuePressure[L+1]=lastPressure;
@@ -285,7 +288,7 @@
       }
     }
     for(const n of normalLevels)normalAtTarget.push(n);
-    return {times,minOneShot,worstOneShotLevel,queuePressure,topSpawnRates,rawTopSpawnRates,contactRates,dpsKillRates,normalRareLevels,normalAtTarget,rawSeconds,manualClicks,autoPurchases,normalAutoUpdatesPerSecond:autoUpdatesPerSecond,damageBoostMultiplier,topSpawnAtTarget:lastTopSpawn,rawTopSpawnAtTarget:lastRawTopSpawn,contactRateAtTarget:lastContactRate,dpsKillRateAtTarget:lastDpsKillRate,dpsLogAtTarget:lastDpsLog,hpSmallLogAtTarget:lastHpSmallLog,hpLargeLogAtTarget:lastHpLargeLog};
+    return {times,minOneShot,worstOneShotLevel,queuePressure,topSpawnRates,rawTopSpawnRates,contactRates,dpsKillRates,normalRareLevels,normalAtTarget,normalUsedAtTarget:lastNormalUsed,rawSeconds,manualClicks,autoPurchases,normalAutoUpdatesPerSecond:autoUpdatesPerSecond,damageBoostMultiplier,topSpawnAtTarget:lastTopSpawn,rawTopSpawnAtTarget:lastRawTopSpawn,contactRateAtTarget:lastContactRate,dpsKillRateAtTarget:lastDpsKillRate,dpsLogAtTarget:lastDpsLog,hpSmallLogAtTarget:lastHpSmallLog,hpLargeLogAtTarget:lastHpLargeLog};
   }
 
   function deriveDpsCalibration(observation,physicalCap=11,normalAutoCalibration=null){
@@ -797,6 +800,47 @@
     return log;
   }
 
+  function normalBundleCostLog10(levels,costReduction=1){
+    let total=-Infinity;
+    for(let i=0;i<8;i++)for(let l=0;l<Math.max(0,Math.floor(finite(levels&&levels[i])));l++)total=log10Add(total,normalNextCostLog10(i,l,costReduction));
+    return total;
+  }
+
+  function targetOreStats(opts){
+    const level=Math.max(1,Math.floor(finite(opts&&opts.level,1))),normal=(opts&&opts.normalLevels||Array(8).fill(0)).map(x=>Math.max(0,Math.floor(finite(x)))),core=(opts&&opts.coreLevels||DEFAULT_CORE).map(x=>Math.max(0,Math.floor(finite(x)))),ingot=(opts&&opts.ingotLevels||DEFAULT_INGOT_LEVELS).map(x=>Math.max(0,Math.floor(finite(x))));
+    const totalEarned=Math.max(0,finite(opts&&opts.totalIngotsEarned)),slowdown=Math.max(1,finite(opts&&opts.slowdown,1)),dpsCalibration=Math.max(1e-300,finite(opts&&opts.dpsCalibration,1)),damageBoostMultiplier=Math.max(1e-300,finite(opts&&opts.damageBoostMultiplier,1)),hpCalibration=Math.max(1e-300,finite(opts&&opts.hpCalibration,1)),compressionE=Math.max(0,finite(opts&&opts.compressionE,0)),physicalCap=Math.max(.05,finite(opts&&opts.physicalCap,11));
+    let baseDpsLog=dpsLog10(normal,ingot,core,totalEarned,dpsCalibration),liveDpsLog=baseDpsLog+Math.log10(damageBoostMultiplier);
+    const override=Number(opts&&opts.liveDpsLogOverride);if(Number.isFinite(override)){liveDpsLog=override;baseDpsLog=override-Math.log10(damageBoostMultiplier)}
+    const baseHp=baseOreHpLog10(level),tierLog=Math.log10(ORE_TIER_HP_MULTIPLIER),perkHpLog=Math.log10(slowdown)+Math.log10(hpCalibration)+compressionE;
+    const hpNormal=[];
+    for(let tier=0;tier<3;tier++){
+      const raw=baseHp+tier*tierLog,cap=baseDpsLog+Math.log10(ORE_MAX_CRUSH_SECONDS)+tier*tierLog;
+      hpNormal.push(softCapHpLog(raw,cap)+perkHpLog);
+    }
+    const hp={small:hpNormal[0],medium:hpNormal[1],large:hpNormal[2],largeOrichalcum:hpNormal[2]+Math.log10(ORICHALCUM_HP_MULTIPLIER)};
+    const feed=normalEffect(7,normal[7]),spawn=topSpawnRate(core,ingot,feed,slowdown),terminalSupply=spawn.actual*expectedTerminalPerTop(level),rarity=rarityState(normal,ingot),avgOriHp=1+4*rarity.pOri,contactRate=physicalCap*terminalSupply/(physicalCap+terminalSupply),dpsKillRate=MAX_ZONE_ORES*pow10(liveDpsLog-hp.small)/avgOriHp,processed=Math.max(1e-12,Math.min(contactRate,dpsKillRate));
+    const expectedIncomePerTerminalLog=rankingIncomeLog10(level,slowdown,core,ingot,totalEarned,normal[3],true)+compressionE,normalIncomePerTerminalLog=rankingIncomeLog10(level,slowdown,core,ingot,totalEarned,normal[3],false)+compressionE,incomePerSecondLog=expectedIncomePerTerminalLog+Math.log10(processed),supplySafeDpsLog=hp.small+Math.log10(Math.max(1e-300,contactRate*avgOriHp/MAX_ZONE_ORES));
+    return {level,normalLevels:normal,coreLevels:core,ingotLevels:ingot,baseDpsLog,liveDpsLog,rawBaseHpLog:baseHp,hp,killSecondsLog:hp.largeOrichalcum-liveDpsLog,feed,topSpawn:spawn.actual,rawTopSpawn:spawn.raw,terminalSupply,contactRate,dpsKillRate,processedPerSecond:processed,queuePressure:terminalSupply/Math.max(1e-12,processed),rarity,avgOriHp,normalIncomePerTerminalLog,expectedIncomePerTerminalLog,incomePerSecondLog,supplySafeDpsLog,compressionE};
+  }
+
+  function requiredPreparedDpsLog10(opts){
+    const level=Math.max(1,Math.floor(finite(opts&&opts.level,1))),slowdown=Math.max(1,finite(opts&&opts.slowdown,1)),hpCalibration=Math.max(1e-300,finite(opts&&opts.hpCalibration,1)),compressionE=Math.max(0,finite(opts&&opts.compressionE,0)),damageBoostMultiplier=Math.max(1e-300,finite(opts&&opts.damageBoostMultiplier,1)),targetSeconds=Math.max(.001,finite(opts&&opts.targetKillSeconds,1));
+    const tierLog=2*Math.log10(ORE_TIER_HP_MULTIPLIER),raw=baseOreHpLog10(level)+tierLog,postCap=Math.log10(slowdown)+Math.log10(hpCalibration)+compressionE+Math.log10(ORICHALCUM_HP_MULTIPLIER),boostLog=Math.log10(damageBoostMultiplier),timeLog=Math.log10(targetSeconds);
+    const hpAtBaseDps=baseDpsLog=>softCapHpLog(raw,baseDpsLog+Math.log10(ORE_MAX_CRUSH_SECONDS)+tierLog)+postCap;
+    const margin=baseDpsLog=>baseDpsLog+boostLog+timeLog-hpAtBaseDps(baseDpsLog);
+    let lo=-1000,hi=raw+postCap-timeLog-boostLog+100;
+    while(margin(hi)<0&&hi<1e7)hi+=Math.max(100,Math.abs(hi-lo));
+    for(let i=0;i<96;i++){const mid=(lo+hi)/2;if(margin(mid)>=0)hi=mid;else lo=mid}
+    return hi+boostLog;
+  }
+
+  function calculateRankingTarget(input){
+    const level=Math.max(1,Math.floor(finite(input&&input.level,4885))),core=(input&&input.coreLevels||DEFAULT_CORE).map(x=>Math.max(0,Math.floor(finite(x)))),ingot=(input&&input.ingotLevels||DEFAULT_INGOT_LEVELS).map(x=>Math.max(0,Math.floor(finite(x)))),slowdown=Math.max(1,finite(input&&input.slowdown,1)),physicalCap=Math.max(.05,finite(input&&input.physicalCap,11)),common={level,coreLevels:core,ingotLevels:ingot,totalIngotsEarned:Math.max(0,finite(input&&input.totalIngotsEarned)),slowdown,dpsCalibration:input&&input.dpsCalibration,damageBoostMultiplier:input&&input.damageBoostMultiplier,hpCalibration:input&&input.hpCalibration,compressionE:input&&input.compressionE,physicalCap};
+    const off=targetOreStats({...common,normalLevels:Array(8).fill(0)}),curve=simulateCurve({maxTarget:level+1,core,ingot,slowdown,physicalCap,totalIngotsEarned:common.totalIngotsEarned,dpsCalibration:common.dpsCalibration,damageBoostMultiplier:common.damageBoostMultiplier,hpCalibration:common.hpCalibration,normalAutoEnabled:true,normalAutoUpdatesPerSecond:input&&input.normalAutoUpdatesPerSecond,normalAutoCalibration:input&&input.normalAutoCalibration}),autoLevels=(curve.normalUsedAtTarget||curve.normalAtTarget||Array(8).fill(0)).slice(),auto=targetOreStats({...common,normalLevels:autoLevels});
+    const customLevels=Array.isArray(input&&input.customNormalLevels)&&input.customNormalLevels.length===8?input.customNormalLevels.map(x=>Math.max(0,Math.floor(finite(x)))):null,custom=customLevels?targetOreStats({...common,normalLevels:customLevels}):null,preparedLog=Number(input&&input.liveDpsLogOverride),prepared=Number.isFinite(preparedLog)?targetOreStats({...common,normalLevels:Array(8).fill(0),liveDpsLogOverride:preparedLog}):null,targetKillSeconds=Math.max(.001,finite(input&&input.targetKillSeconds,1)),requiredDpsLog=requiredPreparedDpsLog10({...common,targetKillSeconds}),autoPurchaseCount=autoLevels.reduce((a,b)=>a+b,0),autoSpendLog10=normalBundleCostLog10(autoLevels,coreEffect(3,core[3]));
+    return {level,slowdown,compressionE:common.compressionE||0,targetKillSeconds,coreLevels:core,ingotLevels:ingot,off,auto,custom,prepared,requiredDpsLog,autoPurchaseCount,autoSpendLog10,autoDpsGainLog:auto.liveDpsLog-off.liveDpsLog,autoIncomeGainLog:auto.incomePerSecondLog-off.incomePerSecondLog,offRequiredMarginLog:off.liveDpsLog-requiredDpsLog,preparedRequiredMarginLog:prepared?prepared.liveDpsLog-requiredDpsLog:NaN};
+  }
+
   function evaluateRankingCurve(curve,core,ingot,slowdown,cal,input){
     const duration=Math.max(60,finite(input.afkHours,8)*3600),available=Math.max(0,duration-finite(input.setupSeconds,0)),level=levelAtCalibratedTime(curve,cal,available),rare=curve.normalRareLevels?curve.normalRareLevels[level]:curve.normalAtTarget[3];
     const totalEarned=Math.max(0,finite(input.totalIngotsEarned)),normalLog=rankingIncomeLog10(level,slowdown,core,ingot,totalEarned,rare,false),expectedLog=rankingIncomeLog10(level,slowdown,core,ingot,totalEarned,rare,true);
@@ -855,6 +899,11 @@
     if(mantissa>=9.995){mantissa=1;exponent++}
     return mantissa.toFixed(2)+'e'+exponent;
   }
+  function formatLog10(log){
+    if(log===-Infinity)return '0';if(!Number.isFinite(log))return '—';
+    if(log>=-2&&log<15)return formatNumber(Math.pow(10,log));
+    let exponent=Math.floor(log),mantissa=Math.pow(10,log-exponent);if(mantissa>=9.995){mantissa=1;exponent++}return mantissa.toFixed(2)+'e'+exponent;
+  }
   function parseNumber(value,fallback=0){
     if(typeof value==='number')return Number.isFinite(value)?value:fallback;
     const s=String(value??'').trim().replace(/,/g,'');if(!s)return fallback;
@@ -872,8 +921,8 @@
   }
 
   return {
-    TERMINAL_ORES_PER_TOP,MAX_TOP_SPAWN_RATE,NORMAL_AUTO_UNLOCK_COST,OUTER_DAMAGE_FACTOR,ORE_MAX_CRUSH_SECONDS,MAX_ZONE_ORES,EARLY_ORE_VALUE,EARLY_ORE_HP,NORMAL,INGOT,CORE_NAMES,CORE_FEED,SLOWDOWN,ASCENSION_INGOT_REQ,DEFAULT_INGOT_LEVELS,DEFAULT_CORE,A18_VIDEO_CORE,A18_VIDEO_INGOT,DEFAULT_MEASUREMENTS,
+    TERMINAL_ORES_PER_TOP,MAX_TOP_SPAWN_RATE,NORMAL_AUTO_UNLOCK_COST,OUTER_DAMAGE_FACTOR,ORE_MAX_CRUSH_SECONDS,MAX_ZONE_ORES,ORE_TIER_HP_MULTIPLIER,ORICHALCUM_HP_MULTIPLIER,EARLY_ORE_VALUE,EARLY_ORE_HP,NORMAL,INGOT,CORE_NAMES,CORE_FEED,SLOWDOWN,ASCENSION_INGOT_REQ,DEFAULT_INGOT_LEVELS,DEFAULT_CORE,A18_VIDEO_CORE,A18_VIDEO_INGOT,DEFAULT_MEASUREMENTS,
     totalCoreForAscension,slowdownLevel,nextAscensionRequirement,coreCost,maxCoreLevel,coreEffect,coreBundleCost,ingotEffect,ingotNextCost,ingotCumulativeCost,ingotBundleCost,inferTotalIngotsEarned,normalEffect,requiredExpLog10,requiredExp,baseOreValueLog10,baseOreValue,baseOreHpLog10,baseOreHp,expectedTerminalPerTop,prestigeBase,prestigeGain,prestigePermanent,
-    topSpawnRate,expectedUsefulExpPerTerminal,expectedRarityValueMultiplier,rankingIncomeLog10,dpsLog10,softCapHpLog,simulateCurve,deriveDpsCalibration,fitCalibration,exactTimingMeasurements,timingResolver,mergePrestigeSchedule,prestigeScheduleFunding,planNormalAutoBootstrap,optimizeNormalAutoBootstrap,paretoCoreCandidates,slowdownCandidates,optimizeFixedCore,optimizeAscension,optimizeIngotUpgrades,completeAscensionState,ascensionSearchMaxLevel,optimizeTargetLevel,optimizeRanking,optimizeRankingIngotUpgrades,formatNumber,parseNumber,quickStartAdvice
+    topSpawnRate,expectedUsefulExpPerTerminal,expectedRarityValueMultiplier,rankingIncomeLog10,normalBundleCostLog10,dpsLog10,softCapHpLog,targetOreStats,requiredPreparedDpsLog10,calculateRankingTarget,simulateCurve,deriveDpsCalibration,fitCalibration,exactTimingMeasurements,timingResolver,mergePrestigeSchedule,prestigeScheduleFunding,planNormalAutoBootstrap,optimizeNormalAutoBootstrap,paretoCoreCandidates,slowdownCandidates,optimizeFixedCore,optimizeAscension,optimizeIngotUpgrades,completeAscensionState,ascensionSearchMaxLevel,optimizeTargetLevel,optimizeRanking,optimizeRankingIngotUpgrades,formatNumber,formatLog10,parseNumber,quickStartAdvice
   };
 });
