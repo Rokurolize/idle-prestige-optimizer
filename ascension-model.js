@@ -43,7 +43,7 @@
   for(const c of CORE_FEED_NEXT_COST)CORE_FEED_CUM.push(CORE_FEED_CUM[CORE_FEED_CUM.length-1]+c);
   const SPECIAL_PREFIX=[1,2,4,6,10,100,1000,2000,10000];
   const SLOWDOWN=[...SPECIAL_PREFIX];
-  for(let p=5;p<=45;p++)SLOWDOWN.push(Math.pow(10,p));
+  for(let p=5;p<=42;p++)SLOWDOWN.push(Math.pow(10,p));
   const CORE_FEED=SLOWDOWN.slice();
   const ASCENSION_INGOT_REQ=[250,50000,500000,5000000,50000000,250000000,2500000000,10000000000,50000000000,350000000000,800000000000,6000000000000,20000000000000,80000000000000,400000000000000,2000000000000000,5000000000000000,7000000000000000,30000000000000000,90000000000000000,500000000000000000,2000000000000000000,5000000000000000000,20000000000000000000,70000000000000000000,300000000000000000000,900000000000000000000,4000000000000000000000,20000000000000000000000,5e22,3e23,8e23,3e24,9e24,4e25];
 
@@ -173,8 +173,8 @@
   }
 
   function topSpawnRate(coreLevels,ingotLevels,normalFeed,slowdown){
-    const effectiveRate=Math.max(.01,Math.max(0,finite(normalFeed,1))*ingotEffect(3,ingotLevels[3])*coreEffect(4,coreLevels[4])/Math.max(1,finite(slowdown,1)));
-    const raw=.6*effectiveRate;
+    const effectiveRate=Math.max(0,finite(normalFeed,1))*ingotEffect(3,ingotLevels[3])*coreEffect(4,coreLevels[4])/Math.max(1,finite(slowdown,1));
+    const raw=Math.max(.005,.6*effectiveRate);
     return {raw,actual:Math.min(MAX_TOP_SPAWN_RATE,raw)};
   }
   function maxSupplyCappedSlowdown(coreLevels,ingotLevels,normalFeed=4){
