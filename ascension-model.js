@@ -17,6 +17,20 @@
   const MAX_ZONE_ORES=120;
   const ORE_TIER_HP_MULTIPLIER=1.7;
   const ORICHALCUM_HP_MULTIPLIER=5;
+  // CRUSH FACTORY IDLE v76 Singularity / Legacy constants reconstructed from the VRCW.
+  const LEGACY_REQUIRED_ASCENSIONS=10;
+  const COMPRESSION_UNLOCK_DISCARDED=50;
+  const LEGACY_START_INGOT_CAP=50000000;
+  const ASCENSION_MAX_COUNT=500;
+  const COMPRESSION_INGOT_DENOMINATOR=11113200;
+  const COMPRESSION_VOLUME_TARGET_LOG=80.552;
+  const ORE_VOLUME=0.0137;
+  const BOMB_RARITY_CHANCE=.0015;
+  const THEORETICAL_TERMINAL_SALES_RATE=MAX_TOP_SPAWN_RATE*TERMINAL_ORES_PER_TOP;
+  // 25-count-only Prestige baseline from the existing calibrated pre-Compression
+  // model with the Ingot requirement already satisfied. A13+ settles at 13s/run
+  // in the current calibration, i.e. 325s for the fixed 25-Prestige gate.
+  const PRESTIGE_GATE_25_BASELINE=[35475,27125,24700,6775,5925,2950,2675,2700,450,450,350,325,400];
   const EARLY_ORE_VALUE=[.34362900744795793,.7815852169404028,1.3105059329561746,1.8874439058471755,2.6336507240647125,4.334184788359374,6.739939118696889,8.64958853566101,12.614196244526408,17.902398308642,22.353805455655674,29.87797330570841,36.47543009067704,44.98144004030895,54.27695961817204,71.38908553339408,83.15713010178953,98.80675152551989,121.69951279637111,155.74190634993846,179.04792344125858,226.8861523027345,274.21650214110684,338.40610263604486,391.76187426309815,478.9543738264224,544.5730505335307,647.0168185774196,836.2705248334939,1128.965208525217];
   const EARLY_ORE_HP=[3.1817500689625735,6.700833478569984,10.403218616288283,13.873276162764121,17.9241842965422,27.312716109228543,39.32689740411166,46.73103549562652,63.102386425178636,82.92274317661239,95.87164000899627,118.64954280154458,134.11939945868374,153.14427918138173,171.10361290397313,208.37793555095277,224.74790357817605,247.26293639376246,281.99245297401126,334.1414682506974,355.68899086797006,417.335538934803,467.0326151928781,533.664181259924,572.0424810465383,647.5547612500976,681.733675505318,749.9812678778437,897.5484077181289,1121.9355096476613];
 
@@ -94,8 +108,12 @@
     return Infinity;
   }
   function maxCoreLevel(index,budget){
-    budget=Math.max(0,finite(budget));let lo=0,hi=index===4?CORE_FEED_CUM.length-1:52;
-    while(lo<hi){const mid=Math.ceil((lo+hi)/2);if(coreCost(index,mid)<=budget)lo=mid;else hi=mid-1}return lo;
+    budget=Math.max(0,finite(budget));
+    if(index===4){let lo=0,hi=CORE_FEED_CUM.length-1;while(lo<hi){const mid=Math.ceil((lo+hi)/2);if(coreCost(index,mid)<=budget)lo=mid;else hi=mid-1}return lo}
+    if(index===3)return Math.min(9,Math.max(0,Math.floor(Math.log2(budget+1))));
+    if(index===0||index===1)return Math.min(1023,Math.max(0,Math.floor(Math.log2(budget+1))));
+    if(index===2)return Math.min(1023,Math.max(0,Math.floor(Math.log2(budget/2+1))));
+    return 0;
   }
   function coreEffect(index,level){
     level=Math.max(0,Math.floor(finite(level)));
@@ -121,6 +139,117 @@
   function ingotBundleCost(levels){return levels.reduce((s,l,i)=>s+ingotCumulativeCost(i,l),0)}
   function inferTotalIngotsEarned(held,levels,normalAutoUnlocked=true){
     return Math.max(0,finite(held))+ingotBundleCost(levels||Array(8).fill(0))+(normalAutoUnlocked===false?0:NORMAL_AUTO_UNLOCK_COST);
+  }
+
+  function legacyStartIngot(discardedAscensions){
+    const d=Math.max(0,Math.floor(finite(discardedAscensions)));
+    return Math.min(2*d*d*d,LEGACY_START_INGOT_CAP);
+  }
+  function compressionUnlocked(discardedAscensions){return Math.max(0,Math.floor(finite(discardedAscensions)))>=COMPRESSION_UNLOCK_DISCARDED}
+  function compressionE(bestLevel,discardedAscensions){
+    const best=Math.max(0,finite(bestLevel)),discarded=Math.max(0,finite(discardedAscensions));
+    return Math.pow(10,best/7500)/185*Math.sqrt(discarded/50)+best/1500;
+  }
+  function compressionRarityState(rarePercent=100,gemPercent=1,orichalcumPercent=0){
+    const bomb=BOMB_RARITY_CHANCE,gem=clamp(finite(gemPercent)/100,0,1),rare=clamp(finite(rarePercent)/100,0,1),ori=clamp(finite(orichalcumPercent)/100,0,1),afterBomb=1-bomb;
+    const pGem=afterBomb*gem,afterGem=afterBomb*(1-gem),pOri=afterGem*rare*ori,pRare=afterGem*rare*(1-ori),pNormal=afterGem*(1-rare);
+    return {pBomb:bomb,pGem,pOri,pRare,pNormal};
+  }
+  function compressionRarityValueMultiplier(rarePercent=100,gemPercent=1,orichalcumPercent=0){
+    const p=compressionRarityState(rarePercent,gemPercent,orichalcumPercent);
+    return p.pBomb+p.pNormal+p.pGem*20+p.pRare*10+p.pOri*200;
+  }
+  function compressionExpectedIngotPerOre(requiredIngots,rarePercent=100,gemPercent=1,orichalcumPercent=0){
+    const req=Math.max(0,finite(requiredIngots)),p=compressionRarityState(rarePercent,gemPercent,orichalcumPercent),reward=m=>Math.max(1,req*m/COMPRESSION_INGOT_DENOMINATOR);
+    return (p.pBomb+p.pNormal)*reward(1)+p.pGem*reward(20)+p.pRare*reward(10)+p.pOri*reward(200);
+  }
+  function compressionDirectIngotPlan(opts={}){
+    const a=Math.max(0,Math.floor(finite(opts.ascensionCount))),discarded=Math.max(0,Math.floor(finite(opts.discardedAscensions))),required=Math.max(1,finite(opts.requiredIngots,nextAscensionRequirement(a))),terminalRate=Math.max(1e-12,finite(opts.terminalSalesPerSecond,15.75)),rarePercent=clamp(finite(opts.rarePercent,100),0,100),gemTarget=Math.max(0,Math.min(10,Math.floor(finite(opts.gemLevel,10)))),start=legacyStartIngot(discarded);
+    let held=start,seconds=0,gem=0,ori=0,best=null;
+    const rate=()=>terminalRate*compressionExpectedIngotPerOre(required,rarePercent,ingotEffect(4,gem),ingotEffect(7,ori));
+    const buy=cost=>{if(held+1e-12<cost){seconds+=(cost-held)/Math.max(1e-12,rate());held=cost}held-=cost};
+    for(;gem<gemTarget;gem++)buy(ingotNextCost(4,gem));
+    for(;;){
+      const finish=seconds+(held<required?(required-held)/Math.max(1e-12,rate()):0),gemPercent=ingotEffect(4,gem),oriPercent=ingotEffect(7,ori),row={seconds:finish,ascensionCount:a,discardedAscensions:discarded,requiredIngots:required,startIngot:start,gemLevel:gemTarget,orichalcumLevel:ori,rarePercent,gemPercent,orichalcumPercent:oriPercent,rarityValueMultiplier:compressionRarityValueMultiplier(rarePercent,gemPercent,oriPercent),expectedIngotPerOre:compressionExpectedIngotPerOre(required,rarePercent,gemPercent,oriPercent),terminalSalesPerSecond:terminalRate};
+      if(!best||row.seconds<best.seconds-1e-9||(Math.abs(row.seconds-best.seconds)<1e-9&&row.orichalcumLevel<best.orichalcumLevel))best=row;
+      if(ori>=100)break;buy(ingotNextCost(7,ori));ori++;
+    }
+    return best;
+  }
+  function compressionLevelPushPlan(opts={}){
+    const discarded=Math.max(COMPRESSION_UNLOCK_DISCARDED,Math.floor(finite(opts.discardedAscensions,COMPRESSION_UNLOCK_DISCARDED))),initialBest=Math.max(0,Math.floor(finite(opts.initialBestLevel))),target=Math.max(1,Math.floor(finite(opts.targetLevel,10000))),terminalRate=Math.max(1e-12,finite(opts.terminalSalesPerSecond,15.75)),rarePercent=clamp(finite(opts.rarePercent,100),0,100),slowdown=Math.max(1,finite(opts.slowdown,SLOWDOWN[SLOWDOWN.length-1])),gemLevel=Math.max(0,Math.min(10,Math.floor(finite(opts.gemLevel,10)))),oriLevel=100,required=Math.max(1,finite(opts.requiredIngots,nextAscensionRequirement(ASCENSION_MAX_COUNT))),start=legacyStartIngot(discarded);
+    if(target<=1)return {seconds:0,setupSeconds:0,pushSeconds:0,targetLevel:target,expLevel:0,rareValueLevel:0,feedLevel:0,slowdown,terminalSalesPerSecond:terminalRate};
+    const coreFeed=coreEffect(4,maxCoreLevel(4,totalCoreForAscension(ASCENSION_MAX_COUNT))),normalFeed=normalEffect(7,NORMAL.max[7]),terminalPerTop=expectedTerminalPerTop(target),neededTop=terminalRate/Math.max(1e-12,terminalPerTop),neededIngotFeed=neededTop*slowdown/Math.max(1e-12,.6*normalFeed*coreFeed);let feedLevel=0;while(feedLevel<INGOT.optimizerCap[3]&&ingotEffect(3,feedLevel)+1e-12<neededIngotFeed)feedLevel++;
+    const fixedCost=ingotCumulativeCost(3,feedLevel)+ingotCumulativeCost(4,gemLevel)+ingotCumulativeCost(6,INGOT.optimizerCap[6])+ingotCumulativeCost(7,oriLevel),lateIngotRate=terminalRate*compressionExpectedIngotPerOre(required,rarePercent,ingotEffect(4,gemLevel),ingotEffect(7,oriLevel)),rarity=compressionRarityState(rarePercent,ingotEffect(4,gemLevel),ingotEffect(7,oriLevel)),log125=Math.log10(.125);
+    const baseDeficit=new Float64Array(target+1);
+    for(let level=1;level<target;level++){const best=Math.max(initialBest,level);baseDeficit[level]=baseOreValueLog10(level)+Math.log10(slowdown)+compressionE(best,discarded)+log125-requiredExpLog10(level)}
+    const candidates=[0,200,400,600,700,750,800,825,850,875,890,900,910,920,925,930,935,940,945,950,955,960,970,980,1000,1023].filter(x=>x<=INGOT.optimizerCap[1]);let best=null;
+    const work=d=>d>=0?1:(d<-323?0:Math.pow(10,d));
+    for(const expLevel of candidates){const expLog=Math.log10(Math.max(1e-300,ingotEffect(1,expLevel)));
+      for(const rareValueLevel of candidates){const rv=ingotEffect(5,rareValueLevel),normalLog=expLog,rareLog=expLog+Math.log10(10*rv),gemLog=expLog+Math.log10(20*rv),oriLog=expLog+Math.log10(200*rv),setupCost=fixedCost+ingotCumulativeCost(1,expLevel)+ingotCumulativeCost(5,rareValueLevel),setupSeconds=Math.max(0,setupCost-start)/Math.max(1e-12,lateIngotRate);let pushSeconds=0;
+        for(let level=1;level<target;level++){const d=baseDeficit[level],useful=Math.max(1e-12,(rarity.pBomb+rarity.pNormal)*work(d+normalLog)+rarity.pRare*work(d+rareLog)+rarity.pGem*work(d+gemLog)+rarity.pOri*work(d+oriLog));pushSeconds+=1/(terminalRate*useful)}
+        const row={seconds:setupSeconds+pushSeconds,setupSeconds,pushSeconds,targetLevel:target,initialBestLevel:initialBest,discardedAscensions:discarded,expLevel,rareValueLevel,feedLevel,gemLevel,orichalcumLevel:oriLevel,slowdown,terminalSalesPerSecond:terminalRate,setupCost,expectedDirectIngotPerOre:compressionExpectedIngotPerOre(required,rarePercent,ingotEffect(4,gemLevel),ingotEffect(7,oriLevel))};if(!best||row.seconds<best.seconds)best=row;
+      }
+    }
+    return best;
+  }
+  function compressionVolumeLog(bestLevel,discardedAscensions,totalCrushLog=0){return finite(totalCrushLog)+Math.log10(ORE_VOLUME)+compressionE(bestLevel,discardedAscensions)}
+  function observableUniverseBestLevel(discardedAscensions,totalCrushLog=0){
+    const d=Math.max(0,finite(discardedAscensions)),crush=finite(totalCrushLog);if(compressionVolumeLog(0,d,crush)>=COMPRESSION_VOLUME_TARGET_LOG)return 0;
+    let lo=0,hi=1000;while(hi<1000000&&compressionVolumeLog(hi,d,crush)<COMPRESSION_VOLUME_TARGET_LOG)hi*=2;
+    while(lo+1<hi){const mid=Math.floor((lo+hi)/2);if(compressionVolumeLog(mid,d,crush)>=COMPRESSION_VOLUME_TARGET_LOG)hi=mid;else lo=mid}return hi;
+  }
+  function prestigeGateBaselineSeconds(ascensionCount,scale=1){
+    const a=Math.max(0,Math.floor(finite(ascensionCount))),base=a<PRESTIGE_GATE_25_BASELINE.length?PRESTIGE_GATE_25_BASELINE[a]:325;
+    return Math.max(25,base*Math.max(.01,finite(scale,1)));
+  }
+  function compressionAscensionEstimate(opts={}){
+    const a=Math.max(0,Math.floor(finite(opts.ascensionCount))),discarded=Math.max(COMPRESSION_UNLOCK_DISCARDED,Math.floor(finite(opts.discardedAscensions,COMPRESSION_UNLOCK_DISCARDED))),direct=compressionDirectIngotPlan({...opts,ascensionCount:a,discardedAscensions:discarded}),gate=prestigeGateBaselineSeconds(a,opts.prestigeGateScale);
+    return {...direct,prestigeGateSeconds:gate,overlapSeconds:Math.max(gate,direct.seconds),sequentialSeconds:gate+direct.seconds};
+  }
+  function compressionCycleEstimate(discardedAscensions,count=ASCENSION_MAX_COUNT,opts={}){
+    const d=Math.max(COMPRESSION_UNLOCK_DISCARDED,Math.floor(finite(discardedAscensions,COMPRESSION_UNLOCK_DISCARDED))),n=Math.max(0,Math.min(ASCENSION_MAX_COUNT,Math.floor(finite(count,ASCENSION_MAX_COUNT))));
+    let overlapSeconds=0,sequentialSeconds=0,directSeconds=0,prestigeGateSeconds=0;const samples=[];
+    for(let a=0;a<n;a++){
+      const row=compressionAscensionEstimate({...opts,ascensionCount:a,discardedAscensions:d});overlapSeconds+=row.overlapSeconds;sequentialSeconds+=row.sequentialSeconds;directSeconds+=row.seconds;prestigeGateSeconds+=row.prestigeGateSeconds;
+      if(a<6||a===10||a===20||a===50||a===100||a===250||a===499)samples.push(row);
+    }
+    return {discardedAscensions:d,count:n,overlapSeconds,sequentialSeconds,directSeconds,prestigeGateSeconds,samples};
+  }
+  function compressionRouteEstimate(initialDiscarded,extraLegacyCycles,opts={}){
+    let discarded=Math.max(COMPRESSION_UNLOCK_DISCARDED,Math.floor(finite(initialDiscarded,COMPRESSION_UNLOCK_DISCARDED))),prepOverlap=0,prepSequential=0;
+    for(const count of extraLegacyCycles||[]){const cycle=compressionCycleEstimate(discarded,count,opts);prepOverlap+=cycle.overlapSeconds;prepSequential+=cycle.sequentialSeconds;discarded+=count}
+    const finalCycle=compressionCycleEstimate(discarded,ASCENSION_MAX_COUNT,opts),afterA500LegacyDiscarded=discarded+ASCENSION_MAX_COUNT,totalCrushLog=finite(opts.totalCrushLog,0),observableBestLevel=observableUniverseBestLevel(afterA500LegacyDiscarded,totalCrushLog),levelTarget=Math.max(10000,observableBestLevel),currentBestLevel=Math.max(0,Math.floor(finite(opts.bestLevel))),levelPush=compressionLevelPushPlan({discardedAscensions:discarded,initialBestLevel:currentBestLevel,targetLevel:levelTarget,terminalSalesPerSecond:opts.terminalSalesPerSecond,rarePercent:opts.rarePercent,gemLevel:opts.gemLevel});
+    return {initialDiscarded:Math.max(COMPRESSION_UNLOCK_DISCARDED,Math.floor(finite(initialDiscarded,COMPRESSION_UNLOCK_DISCARDED))),finalCycleDiscarded:discarded,extraLegacyCycles:(extraLegacyCycles||[]).slice(),prepOverlapSeconds:prepOverlap,prepSequentialSeconds:prepSequential,finalCycleOverlapSeconds:finalCycle.overlapSeconds,finalCycleSequentialSeconds:finalCycle.sequentialSeconds,levelPush,afterA500LegacyDiscarded,observableBestLevel,levelTarget,currentBestLevel,completionOverlapSeconds:prepOverlap+finalCycle.overlapSeconds+levelPush.seconds,completionSequentialSeconds:prepSequential+finalCycle.sequentialSeconds+levelPush.seconds,observableReadyAtCurrentBest:compressionVolumeLog(currentBestLevel,afterA500LegacyDiscarded,totalCrushLog)>=COMPRESSION_VOLUME_TARGET_LOG};
+  }
+  function optimizeCompressionPreparation(opts={}){
+    const initial=Math.max(COMPRESSION_UNLOCK_DISCARDED,Math.floor(finite(opts.discardedAscensions,COMPRESSION_UNLOCK_DISCARDED))),maxUseful=Math.max(initial,293),prefixCache=new Map(),terminalSalesPerSecond=Math.max(1e-12,finite(opts.terminalSalesPerSecond,15.75)),rarePercent=clamp(finite(opts.rarePercent,100),0,100),gemLevel=Math.max(0,Math.min(10,Math.floor(finite(opts.gemLevel,10)))),routeOpts={...opts,terminalSalesPerSecond,rarePercent,gemLevel};
+    const prefix=d=>{if(prefixCache.has(d))return prefixCache.get(d);const overlap=[0],sequential=[0];let so=0,ss=0;for(let a=0;a<ASCENSION_MAX_COUNT;a++){const r=compressionAscensionEstimate({...routeOpts,ascensionCount:a,discardedAscensions:d});so+=r.overlapSeconds;ss+=r.sequentialSeconds;overlap.push(so);sequential.push(ss)}const p={overlap,sequential};prefixCache.set(d,p);return p};
+    const floorCycle=prefix(maxUseful).overlap[ASCENSION_MAX_COUNT],dp=new Map([[initial,{seconds:0,path:[]}]]);let best=null;
+    for(let d=initial;d<=maxUseful;d++){
+      const state=dp.get(d);if(!state)continue;if(best&&state.seconds+floorCycle>=best.completionOverlapSeconds-1e-9)continue;
+      const p=prefix(d),after=d+ASCENSION_MAX_COUNT,totalCrushLog=finite(routeOpts.totalCrushLog,0),target=Math.max(10000,observableUniverseBestLevel(after,totalCrushLog)),levelPush=compressionLevelPushPlan({discardedAscensions:d,initialBestLevel:routeOpts.bestLevel,targetLevel:target,terminalSalesPerSecond,rarePercent,gemLevel}),completion=state.seconds+p.overlap[ASCENSION_MAX_COUNT]+levelPush.seconds;
+      if(!best||completion<best.completionOverlapSeconds)best={completionOverlapSeconds:completion,prepOverlapSeconds:state.seconds,finalCycleOverlapSeconds:p.overlap[ASCENSION_MAX_COUNT],finalCycleDiscarded:d,extraLegacyCycles:state.path.slice(),levelPush,afterA500LegacyDiscarded:after,observableBestLevel:target>10000?target:observableUniverseBestLevel(after,totalCrushLog),levelTarget:target};
+      for(let k=LEGACY_REQUIRED_ASCENSIONS;k<=maxUseful-d;k++){const nd=d+k,next=state.seconds+p.overlap[k],prev=dp.get(nd);if(!prev||next<prev.seconds)dp.set(nd,{seconds:next,path:state.path.concat(k)})}
+    }
+    const chosen=best||compressionRouteEstimate(initial,[],routeOpts),sequential=compressionRouteEstimate(initial,chosen.extraLegacyCycles,routeOpts),currentBestLevel=Math.max(0,Math.floor(finite(routeOpts.bestLevel))),observableReadyAtCurrentBest=compressionVolumeLog(currentBestLevel,chosen.afterA500LegacyDiscarded,finite(routeOpts.totalCrushLog,0))>=COMPRESSION_VOLUME_TARGET_LOG;
+    return {initialDiscarded:initial,overlap:{seconds:chosen.completionOverlapSeconds,prepSeconds:chosen.prepOverlapSeconds,finalCycleSeconds:chosen.finalCycleOverlapSeconds,finalCycleDiscarded:chosen.finalCycleDiscarded,extraLegacyCycles:chosen.extraLegacyCycles.slice()},sequential:{seconds:sequential.completionSequentialSeconds,prepSeconds:sequential.prepSequentialSeconds,finalCycleSeconds:sequential.finalCycleSequentialSeconds,finalCycleDiscarded:sequential.finalCycleDiscarded,extraLegacyCycles:sequential.extraLegacyCycles.slice()},afterA500LegacyDiscarded:chosen.afterA500LegacyDiscarded,observableBestLevel:chosen.observableBestLevel,levelTarget:chosen.levelTarget,currentBestLevel,observableReadyAtCurrentBest,terminalSalesPerSecond,theoreticalTerminalSalesPerSecond:THEORETICAL_TERMINAL_SALES_RATE,rarePercent,gemLevel,levelPush:chosen.levelPush,completionOverlapSeconds:chosen.completionOverlapSeconds,completionSequentialSeconds:sequential.completionSequentialSeconds};
+  }
+  function optimizeLegacyPartitions(opts={}){
+    const startDiscarded=Math.max(0,Math.floor(finite(opts.discardedAscensions))),startAscension=Math.max(0,Math.floor(finite(opts.currentAscension))),unlock=Math.max(COMPRESSION_UNLOCK_DISCARDED,Math.floor(finite(opts.unlockDiscarded,COMPRESSION_UNLOCK_DISCARDED))),maxTarget=Math.max(LEGACY_REQUIRED_ASCENSIONS,Math.floor(finite(opts.maxLegacyTarget,ASCENSION_MAX_COUNT))),ascensionCost=typeof opts.ascensionCost==='function'?opts.ascensionCost:()=>Infinity,continuationCost=typeof opts.continuationCost==='function'?opts.continuationCost:()=>0,continuationFloor=Math.max(0,finite(opts.continuationFloor,0)),memo=new Map();
+    function solve(discarded,current,isInitial){
+      const key=discarded+'|'+current+'|'+(isInitial?1:0),cached=memo.get(key);if(cached)return cached;
+      let best=null,segment=0;
+      for(let target=current;target<=maxTarget;target++){
+        if(target>current){const edge=ascensionCost(target-1,discarded,isInitial&&target-1===current);if(!Number.isFinite(edge))break;segment+=edge}
+        if(target<LEGACY_REQUIRED_ASCENSIONS)continue;
+        const nextDiscarded=discarded+target;let tail;if(nextDiscarded>=unlock)tail={seconds:continuationCost(nextDiscarded),legacyTargets:[]};else tail=solve(nextDiscarded,0,false);
+        if(!tail||!Number.isFinite(tail.seconds))continue;const row={seconds:segment+tail.seconds,legacyTargets:[target].concat(tail.legacyTargets),unlockDiscarded:tail.unlockDiscarded||nextDiscarded};if(!best||row.seconds<best.seconds)best=row;
+        if(best&&segment+continuationFloor>=best.seconds-1e-9)break;
+      }
+      memo.set(key,best);return best;
+    }
+    return solve(startDiscarded,startAscension,true);
   }
   function normalEffect(index,level){level=Math.max(0,Math.floor(finite(level)));return NORMAL.base[index]+NORMAL.per[index]*level+NORMAL.per[index]*NORMAL.quad[index]*level*level}
   function requiredExpLog10(level){
@@ -616,6 +745,21 @@
     return {plan:selected,nearAlternatives,calibration:cal,ascensionCount:a,totalCore,nextRequirement:base.nextRequirement,absoluteMaxIngotLevel:absoluteMax,selectedIngotLevel,backedOff,frontierCount:selectedFrontier,strictFallback};
   }
 
+  function optimizeSingularity(input,measurements){
+    const currentAscension=Math.max(0,Math.floor(finite(input&&input.ascensionCount))),discarded=Math.max(0,Math.floor(finite(input&&input.discardedAscensions))),bestLevel=Math.max(0,Math.floor(finite(input&&input.maxLevelEver))),terminalSalesPerSecond=Math.max(1e-12,finite(input&&input.compressionTerminalSalesPerSecond,15.75)),rarePercent=clamp(finite(input&&input.compressionRarePercent,100),0,100),gemLevel=Math.max(0,Math.min(10,Math.floor(finite(input&&input.compressionGemLevel,10)))),totalCrushLog=finite(input&&input.totalCrushLog,0),prestigeGateScale=Math.max(.01,finite(input&&input.prestigeGateScale,1)),postOpts={terminalSalesPerSecond,rarePercent,gemLevel,totalCrushLog,bestLevel,prestigeGateScale};
+    let preCompressionSeconds=0,legacyTargets=[],unlockDiscarded=discarded,currentPlan=null,freshStatesEvaluated=0;
+    if(discarded<COMPRESSION_UNLOCK_DISCARDED){
+      const currentInput={...input,objective:'ascensionEta',ascensionCount:currentAscension,totalCore:Math.max(0,finite(input&&input.totalCore,totalCoreForAscension(currentAscension))),nextRequirement:finite(input&&input.nextRequirement,nextAscensionRequirement(currentAscension)),measurements:measurements||[]},currentResult=optimizeAscension(currentInput,measurements||[]);currentPlan=currentResult&&currentResult.plan;
+      const freshCache=new Map(),continuationCache=new Map(),zeroIngot=Array(8).fill(0);
+      const freshEta=(a,d)=>{const key=d+'|'+a;if(freshCache.has(key))return freshCache.get(key);const start=legacyStartIngot(d),freshInput={...input,objective:'ascensionEta',ascensionCount:a,totalCore:totalCoreForAscension(a),heldIngots:start,totalIngotsEarned:start,prestigeCount:0,normalAutoUnlocked:true,ingotLevels:zeroIngot.slice(),maxTargetLevel:ascensionSearchMaxLevel(a,zeroIngot),oneShotMargin:0,strictOneShot:false,nextRequirement:nextAscensionRequirement(a),measurements:measurements||[]},r=optimizeAscension(freshInput,measurements||[]),eta=r&&r.plan?Math.max(0,finite(r.plan.eta)):Infinity;freshCache.set(key,eta);freshStatesEvaluated++;return eta};
+      const continuation=d=>{const key=Math.max(COMPRESSION_UNLOCK_DISCARDED,Math.floor(d));if(!continuationCache.has(key))continuationCache.set(key,compressionCycleEstimate(key,ASCENSION_MAX_COUNT,postOpts).overlapSeconds);return continuationCache.get(key)};
+      const continuationFloor=continuation(293),route=optimizeLegacyPartitions({discardedAscensions:discarded,currentAscension,unlockDiscarded:COMPRESSION_UNLOCK_DISCARDED,maxLegacyTarget:ASCENSION_MAX_COUNT,continuationFloor,continuationCost:continuation,ascensionCost:(a,d,isInitial)=>isInitial&&a===currentAscension&&currentPlan?Math.max(0,finite(currentPlan.eta)):freshEta(a,d)});
+      if(!route)return {plan:null,reason:'no_legacy_route',currentPlan,freshStatesEvaluated};legacyTargets=route.legacyTargets;unlockDiscarded=route.unlockDiscarded;preCompressionSeconds=Math.max(0,route.seconds-continuation(unlockDiscarded));
+    }
+    const compression=optimizeCompressionPreparation({...postOpts,discardedAscensions:unlockDiscarded}),theoretical=optimizeCompressionPreparation({...postOpts,discardedAscensions:unlockDiscarded,terminalSalesPerSecond:THEORETICAL_TERMINAL_SALES_RATE}),primaryFinalDiscarded=compression.overlap.finalCycleDiscarded,totalOverlapSeconds=preCompressionSeconds+compression.completionOverlapSeconds,totalSequentialSeconds=preCompressionSeconds+compression.completionSequentialSeconds,theoreticalSeconds=preCompressionSeconds+theoretical.completionOverlapSeconds,nextLegacyAt=legacyTargets.length?legacyTargets[0]:null,nextAction=discarded>=COMPRESSION_UNLOCK_DISCARDED?'continue_to_A500':(nextLegacyAt!==null&&currentAscension>=nextLegacyAt?'legacy_now':'continue_to_legacy_target');
+    return {plan:{nextAction,nextLegacyAt,legacyTargets,preCompressionSeconds,unlockDiscarded,compression,totalOverlapSeconds,totalSequentialSeconds,theoreticalSeconds,terminalSalesPerSecond,theoreticalTerminalSalesPerSecond:THEORETICAL_TERMINAL_SALES_RATE,finalCycleDiscarded:primaryFinalDiscarded,extraCompressionLegacyCycles:compression.overlap.extraLegacyCycles,afterA500LegacyDiscarded:compression.afterA500LegacyDiscarded,observableBestLevel:compression.observableBestLevel,levelTarget:compression.levelTarget,currentBestLevel:bestLevel,observableReadyAtCurrentBest:compression.observableReadyAtCurrentBest},currentPlan,freshStatesEvaluated,assumptions:{preCompressionFutureIngotRoadmap:false,compressionRarePercent:rarePercent,compressionGemLevel:gemLevel,prestigeGateScale,compressionEtaMeaning:'overlap assumes direct Ingot can accrue during the 25-Prestige gate; sequential is the conservative no-overlap bound'}};
+  }
+
   function etaContinuous(req,held,rate){return Math.max(0,req-held)/Math.max(1e-12,rate)}
   function canOptimizeIngot(index,level){return level<INGOT.optimizerCap[index]}
   function optimizeIngotUpgrades(input,ascensionResult,measurements,maxSteps=192){
@@ -921,8 +1065,8 @@
   }
 
   return {
-    TERMINAL_ORES_PER_TOP,MAX_TOP_SPAWN_RATE,NORMAL_AUTO_UNLOCK_COST,OUTER_DAMAGE_FACTOR,ORE_MAX_CRUSH_SECONDS,MAX_ZONE_ORES,ORE_TIER_HP_MULTIPLIER,ORICHALCUM_HP_MULTIPLIER,EARLY_ORE_VALUE,EARLY_ORE_HP,NORMAL,INGOT,CORE_NAMES,CORE_FEED,SLOWDOWN,ASCENSION_INGOT_REQ,DEFAULT_INGOT_LEVELS,DEFAULT_CORE,A18_VIDEO_CORE,A18_VIDEO_INGOT,DEFAULT_MEASUREMENTS,
-    totalCoreForAscension,slowdownLevel,nextAscensionRequirement,coreCost,maxCoreLevel,coreEffect,coreBundleCost,ingotEffect,ingotNextCost,ingotCumulativeCost,ingotBundleCost,inferTotalIngotsEarned,normalEffect,requiredExpLog10,requiredExp,baseOreValueLog10,baseOreValue,baseOreHpLog10,baseOreHp,expectedTerminalPerTop,prestigeBase,prestigeGain,prestigePermanent,
-    topSpawnRate,expectedUsefulExpPerTerminal,expectedRarityValueMultiplier,rankingIncomeLog10,normalBundleCostLog10,dpsLog10,softCapHpLog,targetOreStats,requiredPreparedDpsLog10,calculateRankingTarget,simulateCurve,deriveDpsCalibration,fitCalibration,exactTimingMeasurements,timingResolver,mergePrestigeSchedule,prestigeScheduleFunding,planNormalAutoBootstrap,optimizeNormalAutoBootstrap,paretoCoreCandidates,slowdownCandidates,optimizeFixedCore,optimizeAscension,optimizeIngotUpgrades,completeAscensionState,ascensionSearchMaxLevel,optimizeTargetLevel,optimizeRanking,optimizeRankingIngotUpgrades,formatNumber,formatLog10,parseNumber,quickStartAdvice
+    TERMINAL_ORES_PER_TOP,MAX_TOP_SPAWN_RATE,NORMAL_AUTO_UNLOCK_COST,OUTER_DAMAGE_FACTOR,ORE_MAX_CRUSH_SECONDS,MAX_ZONE_ORES,ORE_TIER_HP_MULTIPLIER,ORICHALCUM_HP_MULTIPLIER,LEGACY_REQUIRED_ASCENSIONS,COMPRESSION_UNLOCK_DISCARDED,LEGACY_START_INGOT_CAP,ASCENSION_MAX_COUNT,COMPRESSION_INGOT_DENOMINATOR,COMPRESSION_VOLUME_TARGET_LOG,ORE_VOLUME,BOMB_RARITY_CHANCE,THEORETICAL_TERMINAL_SALES_RATE,EARLY_ORE_VALUE,EARLY_ORE_HP,NORMAL,INGOT,CORE_NAMES,CORE_FEED,SLOWDOWN,ASCENSION_INGOT_REQ,DEFAULT_INGOT_LEVELS,DEFAULT_CORE,A18_VIDEO_CORE,A18_VIDEO_INGOT,DEFAULT_MEASUREMENTS,
+    totalCoreForAscension,slowdownLevel,nextAscensionRequirement,coreCost,maxCoreLevel,coreEffect,coreBundleCost,ingotEffect,ingotNextCost,ingotCumulativeCost,ingotBundleCost,inferTotalIngotsEarned,legacyStartIngot,compressionUnlocked,compressionE,compressionRarityState,compressionRarityValueMultiplier,compressionExpectedIngotPerOre,compressionDirectIngotPlan,compressionLevelPushPlan,compressionVolumeLog,observableUniverseBestLevel,prestigeGateBaselineSeconds,compressionAscensionEstimate,compressionCycleEstimate,optimizeCompressionPreparation,optimizeLegacyPartitions,normalEffect,requiredExpLog10,requiredExp,baseOreValueLog10,baseOreValue,baseOreHpLog10,baseOreHp,expectedTerminalPerTop,prestigeBase,prestigeGain,prestigePermanent,
+    topSpawnRate,expectedUsefulExpPerTerminal,expectedRarityValueMultiplier,rankingIncomeLog10,normalBundleCostLog10,dpsLog10,softCapHpLog,targetOreStats,requiredPreparedDpsLog10,calculateRankingTarget,simulateCurve,deriveDpsCalibration,fitCalibration,exactTimingMeasurements,timingResolver,mergePrestigeSchedule,prestigeScheduleFunding,planNormalAutoBootstrap,optimizeNormalAutoBootstrap,paretoCoreCandidates,slowdownCandidates,optimizeFixedCore,optimizeAscension,optimizeSingularity,optimizeIngotUpgrades,completeAscensionState,ascensionSearchMaxLevel,optimizeTargetLevel,optimizeRanking,optimizeRankingIngotUpgrades,formatNumber,formatLog10,parseNumber,quickStartAdvice
   };
 });
