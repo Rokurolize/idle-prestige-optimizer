@@ -5,9 +5,9 @@ page="$root/ascension.html"
 model="$root/ascension-model.js"
 worker="$root/ascension-worker.js"
 grep -q 'CRUSH FACTORY Goal Optimizer' "$page"
-grep -q '次のAscensionを最短で回す' "$page"
-grep -q '寝ている間にランキングを伸ばす' "$page"
-grep -q 'SINGULARITYを最短で終える' "$page"
+grep -q 'Ascension最短' "$page"
+grep -q '就寝ランキング' "$page"
+grep -q 'Singularity最短' "$page"
 grep -q 'id="discardedAscensions"' "$page"
 grep -q 'id="maxLevelEver"' "$page"
 grep -q 'id="compressionTerminalSalesPerSecond"' "$page"
@@ -112,7 +112,7 @@ grep -q '20 top/sを維持できる範囲だけを候補' "$page"
 input_line=$(grep -n 'class="card stateCard"' "$page" | head -1 | cut -d: -f1)
 purchase_line=$(grep -n 'id="purchaseCard"' "$page" | head -1 | cut -d: -f1)
 result_line=$(grep -n 'id="resultTitle"' "$page" | head -1 | cut -d: -f1)
-calc_line=$(grep -n 'ランキング研究計算機 — 任意LvのHP / 必要DPS / Auto OFF比較（任意）' "$page" | head -1 | cut -d: -f1)
+calc_line=$(grep -n 'ランキング研究計算機 — 任意LvのHP / 必要DPS / Auto OFF比較' "$page" | head -1 | cut -d: -f1)
 [[ $input_line -lt $purchase_line && $purchase_line -lt $result_line && $result_line -lt $calc_line ]]
 grep -q 'if(worker&&workerBusy){worker.terminate();worker=null}' "$page"
 ! grep -q 'function finish(){if(worker){worker.terminate()' "$page"
