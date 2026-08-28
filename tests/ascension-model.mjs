@@ -103,7 +103,7 @@ const result=M.optimizeAscension(input,M.DEFAULT_MEASUREMENTS);
 assert.ok(result.plan,'optimizer should return a feasible A7 plan');
 assert.equal(result.selectedIngotLevel,11,'A7 must retain the maximum feasible Core Ingot level');
 assert.equal(result.backedOff,0);
-assert.equal(result.fixedPlan.core[1],11);
+assert.equal(result.fixedPlan.core[1],10,'operation-aware fixed plan may back off one Ingot Core level when fewer clicks lower total ETA');
 assert.equal(result.manualPlan.core[1],0);
 assert.equal(result.manualPlan.prestigeCore[1],11);
 assert.ok(M.coreBundleCost(result.plan.core)<=2186);
