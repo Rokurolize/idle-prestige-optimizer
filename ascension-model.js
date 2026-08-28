@@ -712,7 +712,7 @@
     return {complete:need<=0,runs,seconds:seconds+interactionSeconds,gameSeconds:seconds,interactionClicks,interactionSeconds,gain,remaining:Math.max(0,need)};
   }
 
-  function evaluateCurve(curve,core,cal,input,timing=null,prestigeCore=core,configuredMaxTarget=null){
+  function evaluateCurve(curve,core,cal,input,timing=null,prestigeCore=core,configuredMaxTarget=null,scheduleInteractionSeconds=null){
     const req=Math.max(0,finite(input.nextRequirement)),held=Math.max(0,finite(input.heldIngots)),pcount=Math.max(0,Math.floor(finite(input.prestigeCount))),oneShot=Math.max(0,finite(input.oneShotMargin,1)),strict=input.strictOneShot!==false,objective=input.objective||'ascensionEta';
     const maxTarget=Math.min(curve.times.length-1,configuredMaxTarget==null?curve.times.length-1:Math.max(50,Math.floor(finite(configuredMaxTarget,curve.times.length-1)))),options=[],actualLevelByPoll=new Map();
     for(let L=50;L<=maxTarget;L++){
@@ -754,8 +754,8 @@
       const minShot=schedule.reduce((a,x)=>Math.min(a,x.oneShotRatio),Infinity),worst=schedule.reduce((a,x)=>x.oneShotRatio<=a.ratio?{ratio:x.oneShotRatio,level:x.worstOneShotLevel}:a,{ratio:Infinity,level:1});
       return {...primary,runs,eta,rate:eta>0?totalGain/eta:0,prestigeSchedule:schedule,totalRuns:runs,totalGain,firstRunGain:schedule[0]?schedule[0].gain:0,firstRunSeconds:schedule[0]?schedule[0].seconds:0,oneShotRatio:minShot,worstOneShotLevel:worst.level};
     }
-    let best=null;
-    function consider(c){if(!c)return;if(!best||c.eta<best.eta-1e-9||(Math.abs(c.eta-best.eta)<1e-9&&c.rate>best.rate+1e-12))best=c}
+    let best=null,bestScore=Infinity;
+    function consider(c){if(!c)return;const interaction=scheduleInteractionSeconds?Math.max(0,finite(scheduleInteractionSeconds(c),0)):0,score=c.eta+interaction;if(!best||score<bestScore-1e-9||(Math.abs(score-bestScore)<1e-9&&c.rate>best.rate+1e-12)){best=c;bestScore=score}}
 
     // When the 25-Prestige gate is binding, split the work into k deep runs that
     // earn the Ingots and (minRuns-k) fastest Lv50-ish count-only runs. This is the
@@ -798,7 +798,14 @@
         end=Math.min(requestedMaxTarget,Math.max(end+64,Math.ceil(end*1.5)));
       }
       for(const pCore of prestigeCores){
-        const ev=evaluateCurve(curve,core,cal,input,timing,pCore,usefulTarget);if(!ev)continue;const actual=ev.actualPrestigeLevel,rate=Math.max(.1,finite(input.uiClickRate,4)),allowTransitionOptimization=!sameLevels(core,pCore),transitioned=allowTransitionOptimization?optimizePrestigeScheduleTransitions(core,ev.prestigeSchedule,Math.max(coreBundleCost(core),finite(input.totalCore,coreBundleCost(core))),rate):{schedule:(ev.prestigeSchedule||[]).map(x=>({...x,runCore:core.slice(),prestigeCore:core.slice()})),interactionPlan:prestigeScheduleInteractionPlan(core,ev.prestigeSchedule,rate,true)},prestigeSchedule=transitioned.schedule,primaryPrestige=(prestigeSchedule.find(x=>x.role!=='count')||prestigeSchedule[0]||{prestigeCore:pCore}).prestigeCore,manualCoreReallocation=prestigeSchedule.some(x=>!sameLevels(x.runCore||core,x.prestigeCore||x.runCore||core));
+        const rate=Math.max(.1,finite(input.uiClickRate,4)),allowTransitionOptimization=!sameLevels(core,pCore),totalCore=Math.max(coreBundleCost(core),finite(input.totalCore,coreBundleCost(core)));
+        // All parts use the same Prestige-Ingot level, so transition cost depends only on total run count. Score it in O(1) instead of re-running the transition DP for every AP candidate.
+        let scheduleInteractionSeconds;
+        if(allowTransitionOptimization){
+          const c=Math.max(0,Math.floor(finite(pCore[1]))),mid=bestPrestigeTransitionCore(core,totalCore,c,'roundtrip'),last=bestPrestigeTransitionCore(core,totalCore,c,'out')||mid,toMid=coreReallocationPlan(core,mid),fromMid=coreReallocationPlan(mid,core),toLast=coreReallocationPlan(core,last);
+          scheduleInteractionSeconds=candidate=>{const runs=Math.max(0,Math.floor(finite(candidate.totalRuns,candidate.runs)));return ((runs>1?(runs-1)*(toMid.clicks+fromMid.clicks):0)+(runs?toLast.clicks:0)+2*runs+1)/rate};
+        }else scheduleInteractionSeconds=candidate=>{const runs=Math.max(0,Math.floor(finite(candidate.totalRuns,candidate.runs)));return (2*runs+1)/rate};
+        const ev=evaluateCurve(curve,core,cal,input,timing,pCore,usefulTarget,scheduleInteractionSeconds);if(!ev)continue;const actual=ev.actualPrestigeLevel,transitioned=allowTransitionOptimization?optimizePrestigeScheduleTransitions(core,ev.prestigeSchedule,totalCore,rate):{schedule:(ev.prestigeSchedule||[]).map(x=>({...x,runCore:core.slice(),prestigeCore:core.slice()})),interactionPlan:prestigeScheduleInteractionPlan(core,ev.prestigeSchedule,rate,true)},prestigeSchedule=transitioned.schedule,primaryPrestige=(prestigeSchedule.find(x=>x.role!=='count')||prestigeSchedule[0]||{prestigeCore:pCore}).prestigeCore,manualCoreReallocation=prestigeSchedule.some(x=>!sameLevels(x.runCore||core,x.prestigeCore||x.runCore||core));
         const prestigeOperation=transitioned.interactionPlan,initialCore=Array.isArray(input.currentCoreLevels)&&input.currentCoreLevels.length===5?coreReallocationPlan(input.currentCoreLevels,core):{method:'unknown',from:core.slice(),to:core.slice(),levelClicks:0,actionClicks:0,clicks:0},slowdownOperation=Number.isFinite(Number(input.currentSlowdownLevel))?slowdownReallocationPlan(input.currentSlowdownLevel,slowdown):{fromLevel:slowdownLevel(slowdown),toLevel:slowdownLevel(slowdown),levelClicks:0,actionClicks:0,clicks:0},interactionClicks=prestigeOperation.clicks+initialCore.clicks+slowdownOperation.clicks,interactionSeconds=interactionClicks/rate,operation={...prestigeOperation,initialCore,slowdown:slowdownOperation,clicks:interactionClicks,seconds:interactionSeconds,clicksPerSecond:rate},row={core:core.slice(),runCore:core.slice(),prestigeCore:primaryPrestige.slice(),manualCoreReallocation,uiClickRate:rate,ingot:ingot.slice(),slowdown,maxSupplyCappedSlowdown:maxSupplyCappedSlowdown(core,ingot,4),...ev,prestigeCore:primaryPrestige.slice(),prestigeSchedule,gameEta:ev.eta,interactionPlan:operation,interactionClicks,interactionSeconds,totalEta:ev.eta+interactionSeconds,steadyRuns:ev.runs,bootstrapRuns:0,normalAtTarget:curve.normalAtTarget,topSpawnAtTarget:curve.topSpawnRates[actual],rawTopSpawnAtTarget:curve.rawTopSpawnRates[actual],contactRateAtTarget:curve.contactRates[actual],timingMeasurementCount:timing.points.length,timingValidated:timing.validated&&ev.targetLevel>=timing.minLevel&&ev.targetLevel<=timing.maxLevel,timingMinLevel:timing.minLevel,timingMaxLevel:timing.maxLevel};
         const etaTie=best&&Math.abs(row.totalEta-best.totalEta)<1e-9,rateTol=best?Math.max(1,Math.abs(best.rate))*1e-12:0,rateTie=best&&Math.abs(row.rate-best.rate)<=rateTol;
         // With the same completion time and throughput, the larger Slowdown weakly
