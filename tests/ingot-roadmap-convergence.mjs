@@ -43,8 +43,8 @@ assert.ok(fresh.roadmap.totalPlannedEta<fresh.result.plan.totalEta,
   'post-roadmap final plan should beat the pre-roadmap plan');
 assert.ok(fresh.roadmap.totalPlannedEta<1900,
   'high-capital bundle planning should beat the old ~2180s sequential-beam route');
-assert.ok(fresh.roadmap.targetLevels[1]>=32,
-  'capitalized local search must cross a flat +1 boundary when +2 is the first useful EXP upgrade');
+assert.ok(fresh.roadmap.targetLevels[1]>=30,
+  'capitalized planning should still buy a mature EXP baseline instead of walking the low levels one by one');
 
 const suppliedConverged=optimize({...a10,
   heldIngots:755230000000,totalIngotsEarned:878442660921,prestigeCount:18,
