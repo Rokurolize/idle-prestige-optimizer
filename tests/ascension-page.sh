@@ -95,6 +95,10 @@ grep -q 'この推奨購入後は、さらに投資するより▲を貯める�
 grep -q '固定★（操作しない）' "$page"
 grep -q '手動★再配分' "$page"
 grep -q '固定★案・代替案・計算根拠' "$page"
+grep -q 'finalFixedPlan' "$page"
+grep -q 'finalManualPlan' "$page"
+! grep -q "fixedPlan:mode==='fixed'?plan:null" "$page"
+! grep -q "manualPlan:mode==='manual'?plan:null" "$page"
 grep -q 'Prestige直前' "$page"
 grep -q '20 top/sを維持できる範囲だけを候補' "$page"
 input_line=$(grep -n 'class="card stateCard"' "$page" | head -1 | cut -d: -f1)
