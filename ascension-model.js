@@ -5,7 +5,8 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   'use strict';
 
-  // CRUSH FACTORY IDLE v1.0.4 / VRCW asset 71.
+  // CRUSH FACTORY IDLE v1.0.4 / VRCW asset r78.
+  // The pre-Compression progression constants below are unchanged from r71 through r78.
   // Deterministic constants are copied from the serialized GameBalanceConfig.
   const TERMINAL_ORES_PER_TOP=4.78640776699;
   const MAX_TOP_SPAWN_RATE=20;
@@ -382,6 +383,31 @@
       useful:rarity.pNormal*workNormal+rarity.pRare*workRare+rarity.pGem*workGem+rarity.pOri*workOri,
       workNormal,workRare,workGem,workOri,rarity
     };
+  }
+
+  function directExpPaceAtLevel(level,input){
+    level=Math.max(1,Math.floor(finite(level,1)));input=input||{};
+    const slowdown=Math.max(1,finite(input.slowdown,1)),expEfficiencyMultiplier=Math.max(1e-300,finite(input.expEfficiencyMultiplier,1)),rarePercent=clamp(finite(input.rarePercent,0),0,100),rareValueMultiplier=Math.max(1e-300,finite(input.rareValueMultiplier,1)),gemPercent=clamp(finite(input.gemPercent,0),0,100),orichalcumPercent=clamp(finite(input.orichalcumPercent,0),0,100),compressionE=Math.max(0,finite(input.compressionE,0));
+    const rare=rarePercent/100,gem=gemPercent/100,ori=orichalcumPercent/100,rarity={pNormal:(1-gem)*(1-rare),pRare:(1-gem)*rare*(1-ori),pGem:gem,pOri:(1-gem)*rare*ori};
+    const reqLog=requiredExpLog10(level),packetLog=baseOreValueLog10(level)+Math.log10(slowdown)+Math.log10(.125*expEfficiencyMultiplier)+compressionE;
+    const work=valueMultiplier=>{const d=packetLog+Math.log10(Math.max(1e-300,valueMultiplier))-reqLog;return d>=0?1:(d<-323?0:Math.pow(10,d))};
+    const workNormal=work(1),workRare=work(10*rareValueMultiplier),workGem=work(20*rareValueMultiplier),workOri=work(200*rareValueMultiplier),useful=rarity.pNormal*workNormal+rarity.pRare*workRare+rarity.pGem*workGem+rarity.pOri*workOri;
+    return {level,useful,paceFactor:useful>0?1/useful:Infinity,workNormal,workRare,workGem,workOri,rarity,requiredExpLog:reqLog,basePacketLog:packetLog};
+  }
+
+  function calculateExpPaceBoundary(input){
+    input=input||{};
+    const normalized={targetLevel:Math.max(1,Math.floor(finite(input.targetLevel,50))),slowdown:Math.max(1,finite(input.slowdown,1)),expEfficiencyMultiplier:Math.max(1e-300,finite(input.expEfficiencyMultiplier,1)),rarePercent:clamp(finite(input.rarePercent,0),0,100),rareValueMultiplier:Math.max(1e-300,finite(input.rareValueMultiplier,1)),gemPercent:clamp(finite(input.gemPercent,0),0,100),orichalcumPercent:clamp(finite(input.orichalcumPercent,0),0,100),compressionE:Math.max(0,finite(input.compressionE,0))};
+    const startLevel=Math.max(1,Math.floor(finite(input.startLevel,50))),maxLevel=Math.max(startLevel+1,Math.floor(finite(input.maxLevel,100000))),paceAt=level=>directExpPaceAtLevel(level,normalized);
+    const firstLevelWhere=predicate=>{
+      if(predicate(paceAt(startLevel)))return startLevel;
+      if(!predicate(paceAt(maxLevel)))return null;
+      let lo=startLevel+1,hi=maxLevel;
+      while(lo<hi){const mid=Math.floor((lo+hi)/2);if(predicate(paceAt(mid)))hi=mid;else lo=mid+1}
+      return lo;
+    };
+    const firstSlowGaugeLevel=firstLevelWhere(x=>x.useful<1-1e-12),fullSpeedGaugeThroughLevel=firstSlowGaugeLevel===null?maxLevel:firstSlowGaugeLevel-1,safeAutoPrestigeLevel=firstSlowGaugeLevel===null?null:firstSlowGaugeLevel,targetArrivalGaugeLevel=Math.max(1,normalized.targetLevel-1),targetArrival=paceAt(targetArrivalGaugeLevel),targetGauge=paceAt(normalized.targetLevel),milestoneFactors=[1.05,1.25,2,10,100],milestones=milestoneFactors.map(factor=>({factor,level:firstLevelWhere(x=>x.paceFactor>=factor)}));
+    return {input:normalized,startLevel,maxLevel,firstSlowGaugeLevel,fullSpeedGaugeThroughLevel,safeAutoPrestigeLevel,targetArrivalGaugeLevel,targetArrivalPaceFactor:targetArrival.paceFactor,targetGaugePaceFactor:targetGauge.paceFactor,targetArrival,targetGauge,milestones};
   }
 
   function dpsLog10(normalLevels,ingotLevels,coreLevels,totalEarned,dpsCalibration=1){
@@ -1321,6 +1347,6 @@
   return {
     TERMINAL_ORES_PER_TOP,MAX_TOP_SPAWN_RATE,NORMAL_AUTO_UNLOCK_COST,OUTER_DAMAGE_FACTOR,ORE_MAX_CRUSH_SECONDS,MAX_ZONE_ORES,ORE_TIER_HP_MULTIPLIER,ORICHALCUM_HP_MULTIPLIER,LEGACY_REQUIRED_ASCENSIONS,COMPRESSION_UNLOCK_DISCARDED,LEGACY_START_INGOT_CAP,ASCENSION_MAX_COUNT,COMPRESSION_INGOT_DENOMINATOR,COMPRESSION_VOLUME_TARGET_LOG,ORE_VOLUME,BOMB_RARITY_CHANCE,THEORETICAL_TERMINAL_SALES_RATE,EARLY_ORE_VALUE,EARLY_ORE_HP,NORMAL,INGOT,CORE_NAMES,CORE_FEED,SLOWDOWN,ASCENSION_INGOT_REQ,DEFAULT_INGOT_LEVELS,DEFAULT_CORE,A18_VIDEO_CORE,A18_VIDEO_INGOT,DEFAULT_MEASUREMENTS,
     totalCoreForAscension,slowdownLevel,nextAscensionRequirement,coreCost,maxCoreLevel,coreEffect,coreBundleCost,coreReallocationPlan,ascensionInteractionPlan,slowdownReallocationPlan,ingotEffect,ingotNextCost,ingotCumulativeCost,ingotBundleCost,inferTotalIngotsEarned,legacyStartIngot,afterAscensionState,compressionUnlocked,compressionE,compressionRarityState,compressionRarityValueMultiplier,compressionExpectedIngotPerOre,compressionDirectIngotPlan,compressionLevelPushPlan,compressionVolumeLog,observableUniverseBestLevel,prestigeGateBaselineSeconds,compressionAscensionEstimate,compressionCycleEstimate,optimizeCompressionPreparation,optimizeLegacyPartitions,normalEffect,requiredExpLog10,requiredExp,baseOreValueLog10,baseOreValue,baseOreHpLog10,baseOreHp,expectedTerminalPerTop,prestigeBase,prestigeGain,prestigePermanent,
-    topSpawnRate,expectedUsefulExpPerTerminal,expectedRarityValueMultiplier,rankingIncomeLog10,normalBundleCostLog10,dpsLog10,softCapHpLog,targetOreStats,requiredPreparedDpsLog10,calculateRankingTarget,simulateCurve,deriveDpsCalibration,fitCalibration,exactTimingMeasurements,timingResolver,mergePrestigeSchedule,prestigeScheduleFunding,planNormalAutoBootstrap,optimizeNormalAutoBootstrap,paretoCoreCandidates,slowdownCandidates,optimizeFixedCore,evaluateAutoPrestigeSetting,optimizeAscension,optimizeSingularity,optimizeIngotUpgrades,completeAscensionState,ascensionSearchMaxLevel,optimizeTargetLevel,optimizeRanking,optimizeRankingIngotUpgrades,formatNumber,formatSlowdownMultiplier,formatLog10,parseNumber,quickStartAdvice
+    topSpawnRate,expectedUsefulExpPerTerminal,directExpPaceAtLevel,calculateExpPaceBoundary,expectedRarityValueMultiplier,rankingIncomeLog10,normalBundleCostLog10,dpsLog10,softCapHpLog,targetOreStats,requiredPreparedDpsLog10,calculateRankingTarget,simulateCurve,deriveDpsCalibration,fitCalibration,exactTimingMeasurements,timingResolver,mergePrestigeSchedule,prestigeScheduleFunding,planNormalAutoBootstrap,optimizeNormalAutoBootstrap,paretoCoreCandidates,slowdownCandidates,optimizeFixedCore,evaluateAutoPrestigeSetting,optimizeAscension,optimizeSingularity,optimizeIngotUpgrades,completeAscensionState,ascensionSearchMaxLevel,optimizeTargetLevel,optimizeRanking,optimizeRankingIngotUpgrades,formatNumber,formatSlowdownMultiplier,formatLog10,parseNumber,quickStartAdvice
   };
 });
