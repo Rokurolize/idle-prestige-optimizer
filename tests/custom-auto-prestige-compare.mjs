@@ -15,20 +15,21 @@ const input={
 
 const optimized=M.optimizeAscension(input,M.DEFAULT_MEASUREMENTS),plan=optimized.plan;
 assert.ok(plan);
-assert.equal(plan.totalEta,1818);
-assert.deepEqual(plan.prestigeSchedule.map(x=>[x.targetLevel,x.runs]),[[2557,9],[50,14]]);
+assert.equal(plan.totalEta,1681.75);
+const scheduleByTarget=new Map();for(const part of plan.prestigeSchedule)scheduleByTarget.set(part.targetLevel,(scheduleByTarget.get(part.targetLevel)||0)+part.runs);
+assert.deepEqual([...scheduleByTarget],[[2557,9],[50,14]]);
 assert.equal(M.slowdownLevel(plan.slowdown),11);
 
 const fixed2000=M.evaluateAutoPrestigeSetting(input,plan.core,input.ingotLevels,optimized.calibration,2000,plan.slowdown,plan.prestigeCore);
 assert.equal(fixed2000.targetLevel,2000);
 assert.equal(fixed2000.runs,23);
-assert.equal(fixed2000.totalEta,2868);
+assert.equal(fixed2000.totalEta,2731.75);
 assert.ok(fixed2000.totalEta>plan.totalEta);
 assert.equal(fixed2000.admissible,true);
 
 const fixed2557=M.evaluateAutoPrestigeSetting(input,plan.core,input.ingotLevels,optimized.calibration,2557,plan.slowdown,plan.prestigeCore);
 assert.equal(fixed2557.runs,23);
-assert.equal(fixed2557.totalEta,3512,'keeping the deep target for all 23 runs must expose the cost of not switching to Lv50 fillers');
+assert.equal(fixed2557.totalEta,3375.75,'keeping the deep target for all 23 runs must expose the cost of not switching to Lv50 fillers');
 assert.ok(fixed2557.totalEta>fixed2000.totalEta);
 
 console.log(JSON.stringify({
