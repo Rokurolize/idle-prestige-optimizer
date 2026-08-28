@@ -80,10 +80,11 @@ const suppliedA15={
   hpCalibration:1,manualClickRate:4,uiClickRate:4,normalAutoUpdatesPerSecond:36.5
 };
 const suppliedA15Plan=optimize(suppliedA15);
-assert.equal(suppliedA15Plan.roadmap.targetLevels[4],6,
-  'A15 Gem Chance roadmap must choose the first level on the 28-run ETA plateau instead of overbuying to Lv9');
-assert.deepEqual(suppliedA15Plan.roadmap.steps.map(s=>[s.index,s.fromLevel,s.level]),[[4,0,6]]);
-assert.equal(suppliedA15Plan.roadmap.totalPlannedEta,6208.75);
+assert.equal(suppliedA15Plan.roadmap.targetLevels[4],0,
+  'A15 Gem Chance roadmap must stay at Lv0 when operation-aware scheduling already reaches the 28-run ETA optimum');
+assert.ok(!suppliedA15Plan.roadmap.steps.some(s=>s.index===4),
+  'A15 roadmap must not buy Gem Chance when it cannot reduce total ETA');
+assert.equal(suppliedA15Plan.roadmap.totalPlannedEta,6207.25);
 
 console.log(JSON.stringify({
   exact:{steps:exact.roadmap.steps.length,baseline:exact.roadmap.baselineEta,planned:exact.roadmap.plannedEta},
