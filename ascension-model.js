@@ -793,7 +793,13 @@
     function choose(selected,row){return !selected||row.totalEta<selected.totalEta-1e-9||(Math.abs(row.totalEta-selected.totalEta)<1e-9&&(row.interactionClicks<selected.interactionClicks||(row.interactionClicks===selected.interactionClicks&&row.rate>selected.rate)))?row:selected}
     function searchFixed(searchBase){
       let selected=null,selectedFrontier=0,selectedIngotLevel=absoluteMax,backedOff=0,candidatePool=[];
-      for(let il=absoluteMax;il>=0;il--){
+      // Fixed-Core winners sit on two analytically small boundaries: Core-Ingot 0
+      // when the remaining Prestige-count gate already funds the Ingot requirement,
+      // otherwise the largest affordable Core-Ingot level or its first two click-
+      // cost backoffs. Keep the legacy exhaustive sweep as an explicit verification
+      // mode so differential tests can guard this reduction as the model evolves.
+      const remainingIngotNeed=Math.max(0,finite(searchBase.nextRequirement)-finite(searchBase.heldIngots)),remainingPrestigeGate=Math.max(0,25-Math.max(0,Math.floor(finite(searchBase.prestigeCount)))),gateCoversNeed=remainingPrestigeGate>0&&remainingPrestigeGate*prestigeGain(50,0)+1e-9>=remainingIngotNeed,ingotLevelsToSearch=searchBase.exhaustiveCoreIngotSearch?Array.from({length:absoluteMax+1},(_,i)=>absoluteMax-i):((remainingIngotNeed<=0||gateCoversNeed)?[0]:[absoluteMax,absoluteMax-1,absoluteMax-2].filter(x=>x>=0));
+      for(const il of ingotLevelsToSearch){
         const frontier=paretoCoreCandidates(totalCore,il);selectedFrontier+=frontier.length;
         for(const cand of frontier){const row=optimizeFixedCore(searchBase,cand.core,ingot,cal);if(!row)continue;row.coreUsed=cand.used;row.coreLeft=cand.left;row.frontierCount=frontier.length;row.strategyMode='fixed';candidatePool.push(row);const before=selected;selected=choose(selected,row);if(selected!==before){selectedIngotLevel=il;backedOff=absoluteMax-il}}
       }
@@ -838,7 +844,7 @@
     if(!plan)return {steps:[],phases:[],targetLevels:(input.ingotLevels||Array(8).fill(0)).slice(),spent:0,stopReason:'no_plan'};
     const cal=ascensionResult.calibration||fitCalibration(measurements,input.normalAutoUpdatesPerSecond),req=ascensionResult.nextRequirement;
     const postBootstrapInput=plan.bootstrap&&plan.bootstrap.postState?{...plan.bootstrap.postState,normalAutoUnlocked:true}:{...input,normalAutoUnlocked:true};
-    let levels=(input.ingotLevels||Array(8).fill(0)).map(x=>Math.max(0,Math.floor(finite(x)))),held=Math.max(0,finite(postBootstrapInput.heldIngots)),totalEarned=Math.max(0,finite(postBootstrapInput.totalIngotsEarned)),prestigeCount=Math.max(0,Math.floor(finite(postBootstrapInput.prestigeCount)));
+    let levels=(input.ingotLevels||Array(8).fill(0)).map(x=>Math.max(0,Math.floor(finite(x)))),held=Math.max(0,finite(postBootstrapInput.heldIngots)),totalEarned=Math.max(0,finite(postBootstrapInput.totalIngotsEarned)),prestigeCount=Math.max(0,Math.floor(finite(postBootstrapInput.prestigeCount))),currentCoreLevels=Array.isArray(postBootstrapInput.currentCoreLevels)&&postBootstrapInput.currentCoreLevels.length===5?postBootstrapInput.currentCoreLevels.slice():null,currentSlowdownLevel=Number.isFinite(Number(postBootstrapInput.currentSlowdownLevel))?postBootstrapInput.currentSlowdownLevel:null;
     const uiClickRate=Math.max(.1,finite(input.uiClickRate,4));let spent=0,elapsed=0,purchaseClicks=0,purchaseInteractionSeconds=0,steps=[],phases=[],nodesEvaluated=0,replans=0,stopReason='marginal_no_gain';
     const initialLevels=levels.slice(),initialHeld=held,initialPrestigeCount=prestigeCount,phaseDepth=3,beamWidth=5,maxPhases=Math.max(1,Math.ceil(maxSteps/phaseDepth)+2),minImprovement=.0005,fullPolicyCache=new Map(),fixedPolicyCache=new Map();
     function stateNumber(v){return Number.isFinite(Number(v))?Number(v).toPrecision(15):String(v)}
@@ -848,16 +854,18 @@
       replans++;
       const r=optimizeAscension({...postBootstrapInput,objective:'ascensionEta',normalAutoUnlocked:true,heldIngots:stateHeld,totalIngotsEarned:stateEarned,prestigeCount:statePrestige,currentCoreLevels:stateCore,currentSlowdownLevel:stateSlowdown,ingotLevels:stateLevels.slice(),nextRequirement:req},measurements),value=r&&r.plan?{...r.plan,calibration:r.calibration}:null;fullPolicyCache.set(key,value);return value;
     }
-    function fixedPolicy(policy,stateLevels,stateHeld,stateEarned,statePrestige){
-      const key=policyStateKey(stateLevels,stateHeld,stateEarned,statePrestige,policy.core,slowdownLevel(policy.slowdown),policy.prestigeCore||policy.core);if(fixedPolicyCache.has(key))return fixedPolicyCache.get(key);
+    function fixedPolicy(policy,stateLevels,stateHeld,stateEarned,statePrestige,stateCore,stateSlowdown){
+      const currentCore=Array.isArray(stateCore)&&stateCore.length===5?stateCore:postBootstrapInput.currentCoreLevels,currentSlow=Number.isFinite(Number(stateSlowdown))?stateSlowdown:postBootstrapInput.currentSlowdownLevel,key=policyStateKey(stateLevels,stateHeld,stateEarned,statePrestige,currentCore,currentSlow,policy.core.concat(policy.prestigeCore||policy.core,[policy.slowdown]));if(fixedPolicyCache.has(key))return fixedPolicyCache.get(key);
       nodesEvaluated++;
-      const value=optimizeFixedCore({...postBootstrapInput,objective:'ascensionEta',normalAutoUnlocked:true,heldIngots:stateHeld,totalIngotsEarned:stateEarned,prestigeCount:statePrestige,currentCoreLevels:policy.core.slice(),currentSlowdownLevel:slowdownLevel(policy.slowdown),ingotLevels:stateLevels.slice(),nextRequirement:req},policy.core,stateLevels,cal,[policy.slowdown],policy.prestigeCore||policy.core);fixedPolicyCache.set(key,value);return value;
+      const value=optimizeFixedCore({...postBootstrapInput,objective:'ascensionEta',normalAutoUnlocked:true,heldIngots:stateHeld,totalIngotsEarned:stateEarned,prestigeCount:statePrestige,currentCoreLevels:Array.isArray(currentCore)?currentCore.slice():null,currentSlowdownLevel:currentSlow,ingotLevels:stateLevels.slice(),nextRequirement:req},policy.core,stateLevels,cal,[policy.slowdown],policy.prestigeCore||policy.core);fixedPolicyCache.set(key,value);return value;
     }
     function runsToGoal(stateHeld,statePrestige,policy){return Math.max(0,Math.floor(finite(policy&&policy.totalRuns,policy&&policy.runs||0)))}
     function finishEta(elapsedLocal,stateHeld,statePrestige,policy){return elapsedLocal+Math.max(0,finite(policy&&policy.totalEta,policy&&policy.eta))}
     function fundingToBuy(policy,stateHeld,cost){
-      const need=Math.max(0,cost-stateHeld);if(need<=0)return {complete:true,runs:0,seconds:0,gain:0};
-      return prestigeScheduleFunding(policy,need,true);
+      const need=Math.max(0,cost-stateHeld);if(need<=0)return {complete:true,runs:0,seconds:0,gain:0,interactionClicks:0,interactionSeconds:0};
+      const funding=prestigeScheduleFunding(policy,need,true);if(!(funding.runs>0))return funding;
+      const initial=policy.interactionPlan||{},initialClicks=Math.max(0,finite(initial.initialCore&&initial.initialCore.clicks))+Math.max(0,finite(initial.slowdown&&initial.slowdown.clicks)),initialSeconds=initialClicks/uiClickRate;
+      return {...funding,seconds:funding.seconds+initialSeconds,interactionClicks:Math.max(0,finite(funding.interactionClicks))+initialClicks,interactionSeconds:Math.max(0,finite(funding.interactionSeconds))+initialSeconds};
     }
     function keyFor(ls,p,h){return ls.join(',')+'|'+p+'|'+Math.round(h)}
     function incrementalIngotCost(index,from,to){return Math.max(0,ingotCumulativeCost(index,to)-ingotCumulativeCost(index,from))}
@@ -890,7 +898,13 @@
       return out;
     }
 
-    let policy=fullPolicy(levels,held,totalEarned,prestigeCount);
+    let policy;
+    if(plan.bootstrap&&plan.bootstrap.needed){
+      policy=fullPolicy(levels,held,totalEarned,prestigeCount,currentCoreLevels,currentSlowdownLevel);
+    }else{
+      policy={...plan,calibration:cal};
+      fullPolicyCache.set(policyStateKey(levels,held,totalEarned,prestigeCount,currentCoreLevels,currentSlowdownLevel),policy);
+    }
     if(!policy)return {steps,phases,targetLevels:levels,spent,postBootstrapState:postBootstrapInput,stopReason:'no_policy',nodesEvaluated,replans};
     const baselineEta=Math.max(0,finite(policy.totalEta,policy.eta));let stallPrerequisiteApplied=false;
 
@@ -901,15 +915,91 @@
     if(levels[5]>0&&levels[6]<INGOT.optimizerCap[6]){
       const from=levels[6],to=INGOT.optimizerCap[6],cost=incrementalIngotCost(6,from,to),goalRuns=runsToGoal(held,prestigeCount,policy),funding=fundingToBuy(policy,held,cost);
       if(funding.complete&&!(funding.runs>=goalRuns&&funding.runs>0)){
-        const fundedHeld=held+funding.gain,nextHeld=fundedHeld-cost,nextEarned=totalEarned+funding.gain,nextPrestige=prestigeCount+funding.runs,nextLevels=levels.slice();nextLevels[6]=to;
-        const levelClicks=to-from,purchaseSeconds=levelClicks/uiClickRate,nextPolicy=fixedPolicy(policy,nextLevels,nextHeld,nextEarned,nextPrestige)||policy,step={index:6,name:INGOT.names[6],fromLevel:from,level:to,levels:nextLevels.slice(),cost,waitSeconds:funding.gameSeconds??funding.seconds,prestigeInteractionSeconds:funding.interactionSeconds||0,levelClicks,interactionSeconds:purchaseSeconds,prestigesBeforeBuy:funding.runs,buyAt:fundedHeld,effect:ingotEffect(6,to),rateBefore:policy.rate,rateAfter:nextPolicy.rate,hourlyBefore:policy.rate*3600,hourlyAfter:nextPolicy.rate*3600,heldBefore:held,heldAfter:nextHeld,prestigeBefore:prestigeCount,prestigeAfter:nextPrestige,totalEarnedAfter:nextEarned,etaAfter:funding.seconds+purchaseSeconds+Math.max(0,finite(nextPolicy.totalEta,nextPolicy.eta)),bulk:true,strategicPrerequisite:true,phase:0};
-        levels=nextLevels;held=nextHeld;totalEarned=nextEarned;prestigeCount=nextPrestige;elapsed+=funding.seconds+purchaseSeconds;purchaseClicks+=levelClicks;purchaseInteractionSeconds+=purchaseSeconds;spent+=cost;steps.push(step);phases.push({phase:0,startLevels:initialLevels.slice(),endLevels:levels.slice(),startHeld:initialHeld,endHeld:held,startPrestigeCount:initialPrestigeCount,endPrestigeCount:prestigeCount,prestigesDuring:funding.runs,spend:cost,waitSeconds:funding.gameSeconds??funding.seconds,interactionSeconds:(funding.interactionSeconds||0)+purchaseSeconds,purchaseClicks:levelClicks,core:policy.core.slice(),prestigeCore:(policy.prestigeCore||policy.core).slice(),manualCoreReallocation:!!policy.manualCoreReallocation,slowdown:policy.slowdown,targetLevel:policy.targetLevel,actualPrestigeLevel:policy.actualPrestigeLevel,prestigeSchedule:(policy.prestigeSchedule||[]).map(x=>({...x})),cycleSeconds:policy.seconds,rateBefore:policy.rate,rateAfter:nextPolicy.rate,etaBefore:baselineEta,etaAfter:elapsed+Math.max(0,finite(nextPolicy.totalEta,nextPolicy.eta)),changes:[{index:6,name:INGOT.names[6],from,to,cost}],strategicPrerequisite:true});policy=nextPolicy;stallPrerequisiteApplied=true;
+        const fundedHeld=held+funding.gain,nextHeld=fundedHeld-cost,nextEarned=totalEarned+funding.gain,nextPrestige=prestigeCount+funding.runs,nextLevels=levels.slice(),nextCurrentCore=funding.runs>0?policy.core.slice():currentCoreLevels,nextCurrentSlowdown=funding.runs>0?slowdownLevel(policy.slowdown):currentSlowdownLevel;nextLevels[6]=to;
+        const levelClicks=to-from,purchaseSeconds=levelClicks/uiClickRate,nextPolicy=fixedPolicy(policy,nextLevels,nextHeld,nextEarned,nextPrestige,nextCurrentCore,nextCurrentSlowdown)||policy,step={index:6,name:INGOT.names[6],fromLevel:from,level:to,levels:nextLevels.slice(),cost,waitSeconds:funding.gameSeconds??funding.seconds,prestigeInteractionSeconds:funding.interactionSeconds||0,levelClicks,interactionSeconds:purchaseSeconds,prestigesBeforeBuy:funding.runs,buyAt:fundedHeld,effect:ingotEffect(6,to),rateBefore:policy.rate,rateAfter:nextPolicy.rate,hourlyBefore:policy.rate*3600,hourlyAfter:nextPolicy.rate*3600,heldBefore:held,heldAfter:nextHeld,prestigeBefore:prestigeCount,prestigeAfter:nextPrestige,totalEarnedAfter:nextEarned,etaAfter:funding.seconds+purchaseSeconds+Math.max(0,finite(nextPolicy.totalEta,nextPolicy.eta)),bulk:true,strategicPrerequisite:true,phase:0};
+        levels=nextLevels;held=nextHeld;totalEarned=nextEarned;prestigeCount=nextPrestige;currentCoreLevels=Array.isArray(nextCurrentCore)?nextCurrentCore.slice():null;currentSlowdownLevel=nextCurrentSlowdown;elapsed+=funding.seconds+purchaseSeconds;purchaseClicks+=levelClicks;purchaseInteractionSeconds+=purchaseSeconds;spent+=cost;steps.push(step);phases.push({phase:0,startLevels:initialLevels.slice(),endLevels:levels.slice(),startHeld:initialHeld,endHeld:held,startPrestigeCount:initialPrestigeCount,endPrestigeCount:prestigeCount,prestigesDuring:funding.runs,spend:cost,waitSeconds:funding.gameSeconds??funding.seconds,interactionSeconds:(funding.interactionSeconds||0)+purchaseSeconds,purchaseClicks:levelClicks,core:policy.core.slice(),prestigeCore:(policy.prestigeCore||policy.core).slice(),manualCoreReallocation:!!policy.manualCoreReallocation,slowdown:policy.slowdown,targetLevel:policy.targetLevel,actualPrestigeLevel:policy.actualPrestigeLevel,prestigeSchedule:(policy.prestigeSchedule||[]).map(x=>({...x})),cycleSeconds:policy.seconds,rateBefore:policy.rate,rateAfter:nextPolicy.rate,etaBefore:baselineEta,etaAfter:elapsed+Math.max(0,finite(nextPolicy.totalEta,nextPolicy.eta)),changes:[{index:6,name:INGOT.names[6],from,to,cost}],strategicPrerequisite:true});policy=nextPolicy;stallPrerequisiteApplied=true;
       }
     }
 
-    for(let phaseNo=1;phaseNo<=maxPhases&&steps.length<maxSteps;phaseNo++){
+    let skipBeam=false;
+    const ascensionLevel=Math.max(0,Math.floor(finite(postBootstrapInput.ascensionCount))),matureCapital=levels[1]>=20&&levels[2]>=20&&levels[3]>=20&&levels[5]>=20&&levels[6]>=INGOT.optimizerCap[6]&&levels[7]>=20;
+    if(ascensionLevel>=8){
+      let capitalized=matureCapital;
+      if(!capitalized&&runsToGoal(held,prestigeCount,policy)>1){
+        const capitalStartLevels=levels.slice(),capitalStartHeld=held,capitalStartEarned=totalEarned,capitalStartPrestige=prestigeCount,capitalStartCore=Array.isArray(currentCoreLevels)?currentCoreLevels.slice():null,capitalStartSlow=currentSlowdownLevel,capitalStartEta=finishEta(0,held,prestigeCount,policy),capitalBudget=held+Math.max(0,finite(policy.firstRunGain,policy.gain));
+        const perSlot=Math.max(0,capitalBudget/8),capitalTarget=levels.map((from,i)=>Math.max(from,Math.min(INGOT.optimizerCap[i],Math.floor(Math.log2(perSlot/INGOT.baseCost[i]+1)))));
+        if(capitalTarget[5]>0)capitalTarget[6]=Math.max(capitalTarget[6],INGOT.optimizerCap[6]);
+        let capitalCost=capitalTarget.reduce((s,to,i)=>s+incrementalIngotCost(i,levels[i],to),0),capitalFunding=fundingToBuy(policy,held,capitalCost),capitalClicks=capitalTarget.reduce((s,to,i)=>s+Math.max(0,to-levels[i]),0),capitalPurchaseSeconds=capitalClicks/uiClickRate;
+        if(capitalCost>0&&capitalFunding.complete&&capitalFunding.runs<=1&&!(capitalFunding.runs>=runsToGoal(held,prestigeCount,policy)&&capitalFunding.runs>0)){
+          const fundedHeld=held+capitalFunding.gain,capitalHeld=fundedHeld-capitalCost,capitalEarned=totalEarned+capitalFunding.gain,capitalPrestige=prestigeCount+capitalFunding.runs,capitalCore=capitalFunding.runs>0?policy.core.slice():currentCoreLevels,capitalSlow=capitalFunding.runs>0?slowdownLevel(policy.slowdown):currentSlowdownLevel;
+          let capitalPolicy=fixedPolicy(policy,capitalTarget,capitalHeld,capitalEarned,capitalPrestige,capitalCore,capitalSlow),capitalTotal=capitalPolicy?capitalFunding.seconds+capitalPurchaseSeconds+Math.max(0,finite(capitalPolicy.totalEta,capitalPolicy.eta)):Infinity;
+          if(capitalPolicy&&capitalTotal<capitalStartEta*(1-minImprovement)){
+            // The common cost frontier deliberately over-seeds cheap upgrades so
+            // joint effects (EXP × damage × feed × rarity) are visible at once.
+            // Trim whole coordinates back to the imported level when doing so is
+            // faster under the re-optimized capitalized policy. Stall Recovery is
+            // retained whenever Rare Value is active.
+            for(let pass=0;pass<2;pass++){
+              let removed=false;
+              for(let i=0;i<8;i++){
+                if(capitalTarget[i]===capitalStartLevels[i]||(i===6&&capitalTarget[5]>0))continue;
+                const trial=capitalTarget.slice();trial[i]=capitalStartLevels[i];const trialCost=trial.reduce((s,to,j)=>s+incrementalIngotCost(j,capitalStartLevels[j],to),0),trialFunding=fundingToBuy(policy,capitalStartHeld,trialCost);if(!trialFunding.complete||trialFunding.runs>1)continue;
+                const trialHeld=capitalStartHeld+trialFunding.gain-trialCost,trialEarned=capitalStartEarned+trialFunding.gain,trialPrestige=capitalStartPrestige+trialFunding.runs,trialCore=trialFunding.runs>0?policy.core.slice():capitalStartCore,trialSlow=trialFunding.runs>0?slowdownLevel(policy.slowdown):capitalStartSlow,trialPolicy=fixedPolicy(capitalPolicy,trial,trialHeld,trialEarned,trialPrestige,trialCore,trialSlow);if(!trialPolicy)continue;
+                const trialClicks=trial.reduce((s,to,j)=>s+Math.max(0,to-capitalStartLevels[j]),0),trialTotal=trialFunding.seconds+trialClicks/uiClickRate+Math.max(0,finite(trialPolicy.totalEta,trialPolicy.eta));
+                if(trialTotal<capitalTotal-1e-9){capitalTarget.splice(0,capitalTarget.length,...trial);capitalCost=trialCost;capitalFunding=trialFunding;capitalClicks=trialClicks;capitalPurchaseSeconds=trialClicks/uiClickRate;capitalPolicy=trialPolicy;capitalTotal=trialTotal;removed=true}
+              }
+              if(!removed)break;
+            }
+            if(capitalTotal<capitalStartEta*(1-minImprovement)){
+              const replannedCapital=fullPolicy(capitalTarget,capitalStartHeld+capitalFunding.gain-capitalCost,capitalStartEarned+capitalFunding.gain,capitalStartPrestige+capitalFunding.runs,capitalFunding.runs>0?policy.core.slice():capitalStartCore,capitalFunding.runs>0?slowdownLevel(policy.slowdown):capitalStartSlow),replannedTotal=replannedCapital?capitalFunding.seconds+capitalPurchaseSeconds+Math.max(0,finite(replannedCapital.totalEta,replannedCapital.eta)):Infinity;
+              if(replannedCapital&&replannedTotal<capitalStartEta*(1-minImprovement)){capitalPolicy=replannedCapital;capitalTotal=replannedTotal}else{capitalPolicy=null}
+            }
+            if(capitalPolicy&&capitalTotal<capitalStartEta*(1-minImprovement)){
+              const funded=capitalStartHeld+capitalFunding.gain,ordered=capitalTarget.map((to,i)=>({i,to})).filter(x=>x.to>capitalStartLevels[x.i]).sort((a,b)=>(a.i===6?-1:b.i===6?1:a.i-b.i));let runningHeld=funded,first=true;
+              for(const {i,to} of ordered){const from=capitalStartLevels[i],cost=incrementalIngotCost(i,from,to),clicks=to-from,runningLevels=levels.slice();runningLevels[i]=to;runningHeld-=cost;levels[i]=to;steps.push({index:i,name:INGOT.names[i],fromLevel:from,level:to,levels:runningLevels,cost,waitSeconds:first?(capitalFunding.gameSeconds??capitalFunding.seconds):0,prestigeInteractionSeconds:first?(capitalFunding.interactionSeconds||0):0,levelClicks:clicks,interactionSeconds:clicks/uiClickRate,prestigesBeforeBuy:first?capitalFunding.runs:0,buyAt:first?funded:runningHeld+cost,effect:ingotEffect(i,to),rateBefore:policy.rate,rateAfter:capitalPolicy.rate,hourlyBefore:policy.rate*3600,hourlyAfter:capitalPolicy.rate*3600,heldBefore:first?capitalStartHeld:runningHeld+cost,heldAfter:runningHeld,prestigeBefore:first?capitalStartPrestige:capitalStartPrestige+capitalFunding.runs,prestigeAfter:capitalStartPrestige+capitalFunding.runs,totalEarnedAfter:capitalStartEarned+capitalFunding.gain,etaAfter:capitalTotal,bulk:to>from+1,capitalization:true,phase:1});first=false}
+              held=capitalStartHeld+capitalFunding.gain-capitalCost;totalEarned=capitalStartEarned+capitalFunding.gain;prestigeCount=capitalStartPrestige+capitalFunding.runs;currentCoreLevels=capitalFunding.runs>0?policy.core.slice():capitalStartCore;currentSlowdownLevel=capitalFunding.runs>0?slowdownLevel(policy.slowdown):capitalStartSlow;elapsed+=capitalFunding.seconds+capitalPurchaseSeconds;spent+=capitalCost;purchaseClicks+=capitalClicks;purchaseInteractionSeconds+=capitalPurchaseSeconds;
+              phases.push({phase:1,startLevels:capitalStartLevels,endLevels:levels.slice(),startHeld:capitalStartHeld,endHeld:held,startPrestigeCount:capitalStartPrestige,endPrestigeCount:prestigeCount,prestigesDuring:capitalFunding.runs,spend:capitalCost,waitSeconds:capitalFunding.gameSeconds??capitalFunding.seconds,interactionSeconds:(capitalFunding.interactionSeconds||0)+capitalPurchaseSeconds,purchaseClicks:capitalClicks,core:policy.core.slice(),prestigeCore:(policy.prestigeCore||policy.core).slice(),manualCoreReallocation:!!policy.manualCoreReallocation,slowdown:policy.slowdown,targetLevel:policy.targetLevel,actualPrestigeLevel:policy.actualPrestigeLevel,prestigeSchedule:(policy.prestigeSchedule||[]).map(x=>({...x})),cycleSeconds:policy.seconds,rateBefore:policy.rate,rateAfter:capitalPolicy.rate,etaBefore:capitalStartEta,etaAfter:elapsed+Math.max(0,finite(capitalPolicy.totalEta,capitalPolicy.eta)),changes:aggregateChanges(steps.filter(x=>x.phase===1),capitalStartLevels),capitalization:true});
+              policy=capitalPolicy;capitalized=true;
+            }
+          }
+        }
+      }
+      if(capitalized){
+        // Above the capital floor, costs double every level while the upgrade
+        // effects grow only linearly/quadratically. Search the local marginal
+        // frontier instead of reopening the low-level combinatorial beam. Repeat
+        // after one full Core/Slowdown replan so cross-effects still get a chance
+        // to move the optimum.
+        for(let pass=0;pass<2&&steps.length<maxSteps;pass++){
+          const localStartLevels=levels.slice(),localStartHeld=held,localStartPrestige=prestigeCount,localStartRate=policy.rate,localStartEta=finishEta(0,held,prestigeCount,policy);let localSteps=[];
+          for(let i=0;i<8&&steps.length+localSteps.length<maxSteps;i++){
+            for(;;){
+              if(!canOptimizeIngot(i,levels[i]))break;if(i===5&&levels[6]<INGOT.optimizerCap[6])break;
+              const fromLevel=levels[i],maxAffordable=maxAffordableIngotLevel(i,fromLevel,held),targets=new Set([fromLevel+1]);
+              if(maxAffordable>fromLevel){targets.add(maxAffordable);if(maxAffordable-1>fromLevel)targets.add(maxAffordable-1);if(fromLevel+2<=maxAffordable)targets.add(fromLevel+2)}
+              let bestJump=null,currentEta=Math.max(0,finite(policy.totalEta,policy.eta));
+              for(const to of targets){
+                if(to<=fromLevel||to>INGOT.optimizerCap[i])continue;const cost=incrementalIngotCost(i,fromLevel,to);if(cost>held+1e-9)continue;
+                const nextLevels=levels.slice();nextLevels[i]=to;const clicks=to-fromLevel,purchaseSeconds=clicks/uiClickRate,candidate=fixedPolicy(policy,nextLevels,held-cost,totalEarned,prestigeCount,currentCoreLevels,currentSlowdownLevel);if(!candidate)continue;
+                const total=purchaseSeconds+Math.max(0,finite(candidate.totalEta,candidate.eta));
+                if(total<currentEta*(1-minImprovement)&&(!bestJump||total<bestJump.total-1e-9||(Math.abs(total-bestJump.total)<1e-9&&clicks<bestJump.clicks)))bestJump={to,cost,clicks,purchaseSeconds,candidate,total};
+              }
+              if(!bestJump)break;
+              const beforeHeld=held,beforeLevel=fromLevel;levels=levels.slice();levels[i]=bestJump.to;held-=bestJump.cost;spent+=bestJump.cost;elapsed+=bestJump.purchaseSeconds;purchaseClicks+=bestJump.clicks;purchaseInteractionSeconds+=bestJump.purchaseSeconds;localSteps.push({index:i,name:INGOT.names[i],fromLevel:beforeLevel,level:bestJump.to,levels:levels.slice(),cost:bestJump.cost,waitSeconds:0,prestigeInteractionSeconds:0,levelClicks:bestJump.clicks,interactionSeconds:bestJump.purchaseSeconds,prestigesBeforeBuy:0,buyAt:beforeHeld,effect:ingotEffect(i,bestJump.to),rateBefore:policy.rate,rateAfter:bestJump.candidate.rate,hourlyBefore:policy.rate*3600,hourlyAfter:bestJump.candidate.rate*3600,heldBefore:beforeHeld,heldAfter:held,prestigeBefore:prestigeCount,prestigeAfter:prestigeCount,totalEarnedAfter:totalEarned,etaAfter:elapsed+Math.max(0,finite(bestJump.candidate.totalEta,bestJump.candidate.eta)),bulk:bestJump.to>beforeLevel+1,capitalizationPolish:true,phase:phases.length+1});policy=bestJump.candidate;
+            }
+          }
+          if(!localSteps.length)break;
+          steps.push(...localSteps);const phaseNo=phases.length+1;policy=fullPolicy(levels,held,totalEarned,prestigeCount,currentCoreLevels,currentSlowdownLevel)||policy;phases.push({phase:phaseNo,startLevels:localStartLevels,endLevels:levels.slice(),startHeld:localStartHeld,endHeld:held,startPrestigeCount:localStartPrestige,endPrestigeCount:prestigeCount,prestigesDuring:0,spend:localSteps.reduce((s,x)=>s+x.cost,0),waitSeconds:0,interactionSeconds:localSteps.length/uiClickRate,purchaseClicks:localSteps.length,core:policy.core.slice(),prestigeCore:(policy.prestigeCore||policy.core).slice(),manualCoreReallocation:!!policy.manualCoreReallocation,slowdown:policy.slowdown,targetLevel:policy.targetLevel,actualPrestigeLevel:policy.actualPrestigeLevel,prestigeSchedule:(policy.prestigeSchedule||[]).map(x=>({...x})),cycleSeconds:policy.seconds,rateBefore:localStartRate,rateAfter:policy.rate,etaBefore:elapsed-localSteps.length/uiClickRate+localStartEta,etaAfter:elapsed+Math.max(0,finite(policy.totalEta,policy.eta)),changes:aggregateChanges(localSteps,localStartLevels),capitalizationPolish:true});
+        }
+        stopReason='marginal_no_gain';skipBeam=true;
+      }
+    }
+
+    const beamFirstPhase=phases.length+1;
+    for(let phaseNo=beamFirstPhase;!skipBeam&&phaseNo<=maxPhases&&steps.length<maxSteps;phaseNo++){
       const phaseStartLevels=levels.slice(),phaseStartHeld=held,phaseStartEarned=totalEarned,phaseStartPrestige=prestigeCount,phaseStartRate=policy.rate,phaseStartEta=finishEta(0,held,prestigeCount,policy);
-      let beam=[{levels:levels.slice(),held,totalEarned,prestigeCount,elapsed:0,spent:0,rate:policy.rate,policy,path:[],immediateOrder:-1}],best=null;
+      const phaseStartCore=Array.isArray(currentCoreLevels)?currentCoreLevels.slice():null,phaseStartSlowdown=currentSlowdownLevel;
+      let beam=[{levels:levels.slice(),held,totalEarned,prestigeCount,currentCoreLevels:phaseStartCore,currentSlowdownLevel:phaseStartSlowdown,elapsed:0,spent:0,rate:policy.rate,policy,path:[],immediateOrder:-1}],best=null;
       const seen=new Map([[keyFor(levels,prestigeCount,held),phaseStartEta]]);
 
       for(let depth=1;depth<=phaseDepth&&steps.length+depth<=maxSteps;depth++){
@@ -933,8 +1023,8 @@
               // Ascension conditions on or before the Prestige that funds this buy,
               // buying it cannot shorten the current Ascension.
               if(runsBeforeBuy>=goalRuns&&runsBeforeBuy>0)continue;
-              const wait=funding.seconds,purchaseLevelClicks=(targetLevel-fromLevel)+(needsStallPrerequisite?stallTo-stallFrom:0),purchaseSeconds=purchaseLevelClicks/uiClickRate,fundedHeld=node.held+funding.gain,nextHeld=fundedHeld-cost,nextEarned=node.totalEarned+funding.gain,nextPrestige=node.prestigeCount+runsBeforeBuy;
-              const candidate=fixedPolicy(node.policy,nextLevels,nextHeld,nextEarned,nextPrestige);if(!candidate)continue;
+              const wait=funding.seconds,purchaseLevelClicks=(targetLevel-fromLevel)+(needsStallPrerequisite?stallTo-stallFrom:0),purchaseSeconds=purchaseLevelClicks/uiClickRate,fundedHeld=node.held+funding.gain,nextHeld=fundedHeld-cost,nextEarned=node.totalEarned+funding.gain,nextPrestige=node.prestigeCount+runsBeforeBuy,nextCurrentCore=runsBeforeBuy>0?node.policy.core.slice():(Array.isArray(node.currentCoreLevels)?node.currentCoreLevels.slice():null),nextCurrentSlowdown=runsBeforeBuy>0?slowdownLevel(node.policy.slowdown):node.currentSlowdownLevel;
+              const candidate=fixedPolicy(node.policy,nextLevels,nextHeld,nextEarned,nextPrestige,nextCurrentCore,nextCurrentSlowdown);if(!candidate)continue;
               const localElapsed=node.elapsed+wait+purchaseSeconds,eta=finishEta(localElapsed,nextHeld,nextPrestige,candidate),k=keyFor(nextLevels,nextPrestige,nextHeld);
               const prior=seen.get(k);if(prior!==undefined&&prior<=eta+1e-9)continue;seen.set(k,eta);
               const pathSteps=[];
@@ -942,7 +1032,7 @@
                 const intermediate=node.levels.slice(),stallClicks=stallTo-stallFrom;intermediate[6]=stallTo;pathSteps.push({index:6,name:INGOT.names[6],fromLevel:stallFrom,level:stallTo,levels:intermediate,cost:stallCost,waitSeconds:funding.gameSeconds??wait,prestigeInteractionSeconds:funding.interactionSeconds||0,levelClicks:stallClicks,interactionSeconds:stallClicks/uiClickRate,prestigesBeforeBuy:runsBeforeBuy,buyAt:fundedHeld,effect:ingotEffect(6,stallTo),rateBefore:node.policy.rate,rateAfter:node.policy.rate,hourlyBefore:node.policy.rate*3600,hourlyAfter:node.policy.rate*3600,heldBefore:node.held,heldAfter:fundedHeld-stallCost,prestigeBefore:node.prestigeCount,prestigeAfter:nextPrestige,totalEarnedAfter:nextEarned,etaAfter:eta,bulk:stallTo>stallFrom+1,strategicPrerequisite:true});
               }
               pathSteps.push({index:i,name:INGOT.names[i],fromLevel,level:targetLevel,levels:nextLevels.slice(),cost:baseCost,waitSeconds:needsStallPrerequisite?0:(funding.gameSeconds??wait),prestigeInteractionSeconds:needsStallPrerequisite?0:(funding.interactionSeconds||0),levelClicks:targetLevel-fromLevel,interactionSeconds:(targetLevel-fromLevel)/uiClickRate,prestigesBeforeBuy:needsStallPrerequisite?0:runsBeforeBuy,buyAt:needsStallPrerequisite?fundedHeld-stallCost:fundedHeld,effect:ingotEffect(i,targetLevel),rateBefore:node.policy.rate,rateAfter:candidate.rate,hourlyBefore:node.policy.rate*3600,hourlyAfter:candidate.rate*3600,heldBefore:needsStallPrerequisite?fundedHeld-stallCost:node.held,heldAfter:nextHeld,prestigeBefore:needsStallPrerequisite?nextPrestige:node.prestigeCount,prestigeAfter:nextPrestige,totalEarnedAfter:nextEarned,etaAfter:eta,bulk:targetLevel>fromLevel+1});
-              const child={levels:nextLevels,held:nextHeld,totalEarned:nextEarned,prestigeCount:nextPrestige,elapsed:localElapsed,spent:node.spent+cost,rate:candidate.rate,policy:candidate,path:node.path.concat(pathSteps),eta,immediateOrder:runsBeforeBuy===0?Math.max(node.immediateOrder,i):-1};generated.push(child);
+              const child={levels:nextLevels,held:nextHeld,totalEarned:nextEarned,prestigeCount:nextPrestige,currentCoreLevels:nextCurrentCore,currentSlowdownLevel:nextCurrentSlowdown,elapsed:localElapsed,spent:node.spent+cost,rate:candidate.rate,policy:candidate,path:node.path.concat(pathSteps),eta,immediateOrder:runsBeforeBuy===0?Math.max(node.immediateOrder,i):-1};generated.push(child);
               if(!best||eta<best.eta)best=child;
             }
           }
@@ -954,22 +1044,22 @@
 
       if(!best||!(best.eta<phaseStartEta*(1-minImprovement))){stopReason='marginal_no_gain';break}
 
-      levels=best.levels.slice();held=best.held;totalEarned=best.totalEarned;prestigeCount=best.prestigeCount;elapsed+=best.elapsed;spent+=best.spent;
+      levels=best.levels.slice();held=best.held;totalEarned=best.totalEarned;prestigeCount=best.prestigeCount;currentCoreLevels=Array.isArray(best.currentCoreLevels)?best.currentCoreLevels.slice():null;currentSlowdownLevel=best.currentSlowdownLevel;elapsed+=best.elapsed;spent+=best.spent;
       const phaseSteps=best.path.map(x=>({...x,phase:phaseNo})),phasePurchaseClicks=phaseSteps.reduce((s,x)=>s+Math.max(0,finite(x.levelClicks)),0),phasePurchaseInteraction=phaseSteps.reduce((s,x)=>s+Math.max(0,finite(x.interactionSeconds)),0),phasePrestigeInteraction=phaseSteps.reduce((s,x)=>s+Math.max(0,finite(x.prestigeInteractionSeconds)),0);purchaseClicks+=phasePurchaseClicks;purchaseInteractionSeconds+=phasePurchaseInteraction;steps.push(...phaseSteps);
-      const fixedAfter=fixedPolicy(policy,levels,held,totalEarned,prestigeCount)||best.policy;
+      const fixedAfter=fixedPolicy(policy,levels,held,totalEarned,prestigeCount,best.currentCoreLevels,best.currentSlowdownLevel)||best.policy;
       const phase={phase:phaseNo,startLevels:phaseStartLevels,endLevels:levels.slice(),startHeld:phaseStartHeld,endHeld:held,startPrestigeCount:phaseStartPrestige,endPrestigeCount:prestigeCount,prestigesDuring:prestigeCount-phaseStartPrestige,spend:best.spent,waitSeconds:Math.max(0,best.elapsed-phasePurchaseInteraction-phasePrestigeInteraction),interactionSeconds:phasePurchaseInteraction+phasePrestigeInteraction,purchaseClicks:phasePurchaseClicks,core:policy.core.slice(),prestigeCore:(policy.prestigeCore||policy.core).slice(),manualCoreReallocation:!!policy.manualCoreReallocation,slowdown:policy.slowdown,targetLevel:policy.targetLevel,actualPrestigeLevel:policy.actualPrestigeLevel,prestigeSchedule:(policy.prestigeSchedule||[]).map(x=>({...x})),cycleSeconds:policy.seconds,rateBefore:phaseStartRate,rateAfter:fixedAfter.rate,etaBefore:elapsed-best.elapsed+phaseStartEta,etaAfter:elapsed+finishEta(0,held,prestigeCount,fixedAfter),changes:aggregateChanges(best.path,phaseStartLevels)};
       phases.push(phase);
 
-      policy=fullPolicy(levels,held,totalEarned,prestigeCount,fixedAfter.core.slice(),slowdownLevel(fixedAfter.slowdown));if(!policy){stopReason='replan_failed';break}
+      policy=fullPolicy(levels,held,totalEarned,prestigeCount,currentCoreLevels,currentSlowdownLevel);if(!policy){stopReason='replan_failed';break}
       if(runsToGoal(held,prestigeCount,policy)===0){stopReason='requirement_reached';break}
       if(steps.length>=maxSteps){stopReason='search_limit';break}
     }
 
-    const finalPlan=fullPolicy(levels,held,totalEarned,prestigeCount,policy.core.slice(),slowdownLevel(policy.slowdown))||policy,plannedRunsRemaining=runsToGoal(held,prestigeCount,finalPlan);
+    const finalPlan=fullPolicy(levels,held,totalEarned,prestigeCount,currentCoreLevels,currentSlowdownLevel)||policy,plannedRunsRemaining=runsToGoal(held,prestigeCount,finalPlan);
     const plannedEta=elapsed+Math.max(0,finite(finalPlan.totalEta,finalPlan.eta)),timeSaved=Math.max(0,baselineEta-plannedEta),converged=stopReason==='marginal_no_gain'||stopReason==='requirement_reached';
-    const finalPhasePlan={core:finalPlan.core.slice(),runCore:(finalPlan.runCore||finalPlan.core).slice(),prestigeCore:(finalPlan.prestigeCore||finalPlan.core).slice(),manualCoreReallocation:!!finalPlan.manualCoreReallocation,strategyMode:finalPlan.strategyMode||'fixed',slowdown:finalPlan.slowdown,targetLevel:finalPlan.targetLevel,actualPrestigeLevel:finalPlan.actualPrestigeLevel,seconds:finalPlan.seconds,gain:finalPlan.gain,rate:finalPlan.rate,prestigeSchedule:(finalPlan.prestigeSchedule||[]).map(x=>({...x}))};
+    const finalPhasePlan={...finalPlan,core:finalPlan.core.slice(),runCore:(finalPlan.runCore||finalPlan.core).slice(),prestigeCore:(finalPlan.prestigeCore||finalPlan.core).slice(),manualCoreReallocation:!!finalPlan.manualCoreReallocation,strategyMode:finalPlan.strategyMode||'fixed',prestigeSchedule:(finalPlan.prestigeSchedule||[]).map(x=>({...x}))};
     const bootstrapSeconds=plan.bootstrap&&plan.bootstrap.needed?Math.max(0,finite(plan.bootstrap.seconds)):0,bootstrapInteractionSeconds=plan.bootstrap&&plan.bootstrap.needed?Math.max(0,finite(plan.bootstrap.interactionSeconds)):0;
-    return {steps,phases,targetLevels:levels.slice(),initialLevels,initialHeld,initialPrestigeCount,finalHeld:held,finalTotalIngotsEarned:totalEarned,finalPrestigeCount:prestigeCount,spent,purchaseClicks,purchaseInteractionSeconds,uiClickRate,simulatedWaitSeconds:elapsed,postBootstrapState:postBootstrapInput,baselineEta,plannedEta,timeSaved,bootstrapSeconds,bootstrapInteractionSeconds,totalPlannedEta:plannedEta+bootstrapSeconds+bootstrapInteractionSeconds,plannedRunsRemaining,stopReason,converged,nodesEvaluated,replans,stallPrerequisiteApplied,finalRate:finalPlan.rate,finalTargetLevel:finalPlan.targetLevel,finalActualPrestigeLevel:finalPlan.actualPrestigeLevel,finalCycleSeconds:finalPlan.seconds,finalGain:finalPlan.gain,finalPrestigeSchedule:(finalPlan.prestigeSchedule||[]).map(x=>({...x})),finalPlan:finalPhasePlan};
+    return {steps,phases,targetLevels:levels.slice(),initialLevels,initialHeld,initialPrestigeCount,finalHeld:held,finalTotalIngotsEarned:totalEarned,finalPrestigeCount:prestigeCount,finalCurrentCoreLevels:Array.isArray(currentCoreLevels)?currentCoreLevels.slice():null,finalCurrentSlowdownLevel:currentSlowdownLevel,spent,purchaseClicks,purchaseInteractionSeconds,uiClickRate,simulatedWaitSeconds:elapsed,postBootstrapState:postBootstrapInput,baselineEta,plannedEta,timeSaved,bootstrapSeconds,bootstrapInteractionSeconds,totalPlannedEta:plannedEta+bootstrapSeconds+bootstrapInteractionSeconds,plannedRunsRemaining,stopReason,converged,nodesEvaluated,replans,stallPrerequisiteApplied,finalRate:finalPlan.rate,finalTargetLevel:finalPlan.targetLevel,finalActualPrestigeLevel:finalPlan.actualPrestigeLevel,finalCycleSeconds:finalPlan.seconds,finalGain:finalPlan.gain,finalPrestigeSchedule:(finalPlan.prestigeSchedule||[]).map(x=>({...x})),finalPlan:finalPhasePlan};
   }
 
   function completeAscensionState(input,ascensionResult,roadmap){
