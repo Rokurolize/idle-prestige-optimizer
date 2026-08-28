@@ -1032,13 +1032,29 @@
               const fromLevel=levels[i],maxAffordable=maxAffordableIngotLevel(i,fromLevel,held),targets=new Set([fromLevel+1]);
               if(maxAffordable>fromLevel){targets.add(maxAffordable);if(maxAffordable-1>fromLevel)targets.add(maxAffordable-1);if(fromLevel+2<=maxAffordable)targets.add(fromLevel+2)}
               let bestJump=null,currentEta=Math.max(0,finite(policy.totalEta,policy.eta));
-              for(const to of targets){
-                if(to<=fromLevel||to>INGOT.optimizerCap[i])continue;const cost=incrementalIngotCost(i,fromLevel,to);if(cost>held+1e-9)continue;
-                const nextLevels=levels.slice();nextLevels[i]=to;const clicks=to-fromLevel,purchaseSeconds=clicks/uiClickRate,candidate=fixedPolicy(policy,nextLevels,held-cost,totalEarned,prestigeCount,currentCoreLevels,currentSlowdownLevel);if(!candidate)continue;
-                const total=purchaseSeconds+Math.max(0,finite(candidate.totalEta,candidate.eta));
-                if(total<currentEta*(1-minImprovement)&&(!bestJump||total<bestJump.total-1e-9||(Math.abs(total-bestJump.total)<1e-9&&clicks<bestJump.clicks)))bestJump={to,cost,clicks,purchaseSeconds,candidate,total};
-              }
+              const evaluated=new Map(),evaluateJump=to=>{
+                if(to<=fromLevel||to>INGOT.optimizerCap[i])return null;
+                if(evaluated.has(to))return evaluated.get(to);
+                const cost=incrementalIngotCost(i,fromLevel,to);if(cost>held+1e-9){evaluated.set(to,null);return null}
+                const nextLevels=levels.slice();nextLevels[i]=to;const clicks=to-fromLevel,purchaseSeconds=clicks/uiClickRate,candidate=fixedPolicy(policy,nextLevels,held-cost,totalEarned,prestigeCount,currentCoreLevels,currentSlowdownLevel);if(!candidate){evaluated.set(to,null);return null}
+                const row={to,cost,clicks,purchaseSeconds,candidate,total:purchaseSeconds+Math.max(0,finite(candidate.totalEta,candidate.eta))};evaluated.set(to,row);return row;
+              };
+              const chooseJump=row=>{if(row&&row.total<currentEta*(1-minImprovement)&&(!bestJump||row.total<bestJump.total-1e-9||(Math.abs(row.total-bestJump.total)<1e-9&&row.clicks<bestJump.clicks)))bestJump=row};
+              for(const to of targets)chooseJump(evaluateJump(to));
               if(!bestJump)break;
+              // Sparse +1/+2/max probes locate a profitable region quickly, but
+              // their chosen high endpoint can sit on a discrete ETA plateau.
+              // Tighten that endpoint to the cheapest level that is at least as
+              // good. Small jumps are cheap enough to verify exactly; larger
+              // jumps use a lower-bound search and then verify its neighborhood.
+              const plateauTotal=bestJump.total,span=bestJump.to-fromLevel;
+              if(span<=16){
+                for(let to=fromLevel+1;to<bestJump.to;to++){const row=evaluateJump(to);if(row&&row.total<=plateauTotal+1e-9)chooseJump(row)}
+              }else{
+                let lo=fromLevel+1,hi=bestJump.to;
+                while(lo<hi){const mid=(lo+hi)>>1,row=evaluateJump(mid);if(row&&row.total<=plateauTotal+1e-9)hi=mid;else lo=mid+1}
+                for(let to=Math.max(fromLevel+1,lo-2);to<=Math.min(bestJump.to,lo+2);to++){const row=evaluateJump(to);if(row&&row.total<=plateauTotal+1e-9)chooseJump(row)}
+              }
               const beforeHeld=held,beforeLevel=fromLevel;levels=levels.slice();levels[i]=bestJump.to;held-=bestJump.cost;spent+=bestJump.cost;elapsed+=bestJump.purchaseSeconds;purchaseClicks+=bestJump.clicks;purchaseInteractionSeconds+=bestJump.purchaseSeconds;localSteps.push({index:i,name:INGOT.names[i],fromLevel:beforeLevel,level:bestJump.to,levels:levels.slice(),cost:bestJump.cost,waitSeconds:0,prestigeInteractionSeconds:0,levelClicks:bestJump.clicks,interactionSeconds:bestJump.purchaseSeconds,prestigesBeforeBuy:0,buyAt:beforeHeld,effect:ingotEffect(i,bestJump.to),rateBefore:policy.rate,rateAfter:bestJump.candidate.rate,hourlyBefore:policy.rate*3600,hourlyAfter:bestJump.candidate.rate*3600,heldBefore:beforeHeld,heldAfter:held,prestigeBefore:prestigeCount,prestigeAfter:prestigeCount,totalEarnedAfter:totalEarned,etaAfter:elapsed+Math.max(0,finite(bestJump.candidate.totalEta,bestJump.candidate.eta)),bulk:bestJump.to>beforeLevel+1,capitalizationPolish:true,phase:phases.length+1});policy=bestJump.candidate;
             }
           }

@@ -70,9 +70,25 @@ const rerun=optimize({...freshA10,
 assert.deepEqual(rerun.roadmap.steps,[],
   'a converged roadmap must be idempotent when its returned final state is re-optimized');
 
+const a15Levels=[45,44,44,44,0,39,17,39];
+const suppliedA15={
+  goal:'ascension',objective:'ascensionEta',ascensionCount:15,totalCore:M.totalCoreForAscension(15),
+  heldIngots:3690000000000,totalIngotsEarned:M.inferTotalIngotsEarned(3690000000000,a15Levels,true),prestigeCount:3,
+  currentCoreLevels:[20,23,20,9,13],currentSlowdownLevel:14,normalAutoUnlocked:true,
+  ingotLevels:a15Levels,maxTargetLevel:4400,
+  oneShotMargin:1,strictOneShot:true,dpsCalibration:1,damageBoostMultiplier:1,
+  hpCalibration:1,manualClickRate:4,uiClickRate:4,normalAutoUpdatesPerSecond:36.5
+};
+const suppliedA15Plan=optimize(suppliedA15);
+assert.equal(suppliedA15Plan.roadmap.targetLevels[4],6,
+  'A15 Gem Chance roadmap must choose the first level on the 28-run ETA plateau instead of overbuying to Lv9');
+assert.deepEqual(suppliedA15Plan.roadmap.steps.map(s=>[s.index,s.fromLevel,s.level]),[[4,0,6]]);
+assert.equal(suppliedA15Plan.roadmap.totalPlannedEta,6208.75);
+
 console.log(JSON.stringify({
   exact:{steps:exact.roadmap.steps.length,baseline:exact.roadmap.baselineEta,planned:exact.roadmap.plannedEta},
   afterReportedPurchase:{steps:afterReportedPurchase.roadmap.steps.length},
   suppliedConverged:{steps:suppliedConverged.roadmap.steps.length,nodes:suppliedConverged.roadmap.nodesEvaluated,replans:suppliedConverged.roadmap.replans},
+  suppliedA15:{gemLevel:suppliedA15Plan.roadmap.targetLevels[4],plannedEta:suppliedA15Plan.roadmap.totalPlannedEta},
   fresh:{initialRuns:fresh.result.plan.runs,finalRuns:fresh.roadmap.finalPlan.prestigeSchedule.reduce((sum,x)=>sum+x.runs,0),steps:fresh.roadmap.steps.length,plannedEta:fresh.roadmap.totalPlannedEta,levels:fresh.roadmap.targetLevels,rerunSteps:rerun.roadmap.steps.length}
 },null,2));
