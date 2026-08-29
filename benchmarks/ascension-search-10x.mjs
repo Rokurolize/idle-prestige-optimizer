@@ -25,7 +25,7 @@ const page=await browser.newPage();
 await page.goto(`http://127.0.0.1:${port}/`);
 await page.waitForFunction(()=>!!window.CrushAscensionOptimizer);
 
-const input={goal:'ascension',objective:'ascensionEta',ascensionCount:21,totalCore:10460353202,heldIngots:746e15,totalIngotsEarned:276991679474000100,prestigeMultiplier:52630000,prestigeCount:2,currentCoreLevels:[27,33,27,9,19],currentSlowdownLevel:19,compressionEnabled:true,normalAutoUnlocked:true,bombUnlocked:false,dangerEnabled:false,instancePlayerCount:1,incomeBoostActive:false,expBoostActive:false,ingotLevels:[39,53,53,55,0,47,17,47],discardedAscensions:52,maxLevelEver:9485,oneShotMargin:1,strictOneShot:true,dpsCalibration:1,damageBoostMultiplier:1,hpCalibration:1,manualClickRate:4,uiClickRate:4,normalAutoUpdatesPerSecond:36.5};
+const input={goal:'ascension',objective:'ascensionEta',ascensionCount:21,totalCore:10460353202,heldIngots:746e15,totalIngotsEarned:276991679474000100,prestigeMultiplier:52630000,prestigeCount:2,currentCoreLevels:[27,33,27,9,19],currentSlowdownLevel:19,compressionEnabled:true,compressionDestroyRate:13.524788260140536,normalAutoUnlocked:true,bombUnlocked:false,dangerEnabled:false,instancePlayerCount:1,incomeBoostActive:false,expBoostActive:false,ingotLevels:[39,53,53,55,0,47,17,47],discardedAscensions:52,maxLevelEver:9485,nextRequirement:2e18,oneShotMargin:1,strictOneShot:true,dpsCalibration:1,damageBoostMultiplier:1,hpCalibration:1,manualClickRate:4,uiClickRate:4,normalAutoUpdatesPerSecond:36.5};
 
 async function run(kind,maxTargetLevel){
   return page.evaluate(({kind,input,maxTargetLevel})=>new Promise((resolve,reject)=>{
@@ -39,7 +39,7 @@ async function run(kind,maxTargetLevel){
 try{
   const baselineRun=await run('baseline',5750),currentRun=await run('current',10000),speedup=baselineRun.ms/currentRun.ms;
   if(baselineRun.targetLevel!==5651)throw new Error(`baseline fixture drifted: ${JSON.stringify(baselineRun)}`);
-  if(currentRun.targetLevel!==6453||JSON.stringify(currentRun.core)!==JSON.stringify([27,33,29,9,18]))throw new Error(`current optimum drifted: ${JSON.stringify(currentRun)}`);
+  if(currentRun.targetLevel!==6115||JSON.stringify(currentRun.core)!==JSON.stringify([27,33,28,9,18]))throw new Error(`current optimum drifted: ${JSON.stringify(currentRun)}`);
   if(speedup<10)throw new Error(`10x completion condition failed: ${speedup.toFixed(2)}x (${baselineRun.ms.toFixed(1)} ms -> ${currentRun.ms.toFixed(1)} ms)`);
   console.log(JSON.stringify({baselineCommit:BASELINE_COMMIT,baseline:baselineRun,current:currentRun,speedup},null,2));
 }finally{

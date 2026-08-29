@@ -7,7 +7,7 @@ import M from '../ascension-model.js';
 const input={
   goal:'ascension',objective:'ascensionEta',ascensionCount:20,totalCore:M.totalCoreForAscension(20),
   heldIngots:9.26e16,totalIngotsEarned:M.prestigeTotalIngotsEarnedFromMultiplier(14.21e6),prestigeMultiplier:14.21e6,prestigeCount:1,
-  currentCoreLevels:[28,31,28,9,18],currentSlowdownLevel:17,compressionEnabled:true,normalAutoUnlocked:true,
+  currentCoreLevels:[28,31,28,9,18],currentSlowdownLevel:17,compressionEnabled:true,compressionDestroyRate:13.524788260140536,normalAutoUnlocked:true,
   bombUnlocked:true,dangerEnabled:true,instancePlayerCount:1,incomeBoostActive:false,expBoostActive:false,
   ingotLevels:[41,47,47,49,10,45,17,46],maxTargetLevel:7000,discardedAscensions:52,maxLevelEver:9485,
   oneShotMargin:1,strictOneShot:true,dpsCalibration:1,damageBoostMultiplier:1,hpCalibration:1,manualClickRate:4,uiClickRate:4,normalAutoUpdatesPerSecond:36.5
