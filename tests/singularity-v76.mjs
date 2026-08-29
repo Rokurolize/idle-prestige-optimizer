@@ -13,12 +13,17 @@ assert.equal(M.compressionUnlocked(49),false);
 assert.equal(M.compressionUnlocked(50),true);
 
 const late=M.compressionRarityState(100,1,100);
-assert.ok(Math.abs(late.pBomb-.0015)<1e-12);
-assert.ok(Math.abs(late.pGem-.009985)<1e-12);
-assert.ok(Math.abs(late.pOri-.988515)<1e-12);
-assert.ok(Math.abs(M.compressionRarityValueMultiplier(100,1,100)-197.9042)<1e-9);
+assert.ok(Math.abs(late.pGem-.01)<1e-12);
+assert.ok(Math.abs(late.pOri-.99)<1e-12);
+assert.ok(Math.abs(late.pRare)<1e-12);
+assert.ok(Math.abs(late.pNormal)<1e-12);
+assert.ok(Math.abs(M.compressionRarityValueMultiplier(100,1,100)-198.2)<1e-9);
 assert.equal(M.compressionExpectedIngotPerOre(1,100,1,100),1);
-assert.ok(Math.abs(M.compressionExpectedIngotPerOre(11113200,100,1,100)-197.9042)<1e-9);
+assert.ok(Math.abs(M.compressionExpectedIngotPerOre(11113200,100,1,100)-198.2)<1e-9);
+assert.equal(M.nextAscensionRequirement(35),2e26);
+assert.equal(M.nextAscensionRequirement(42),9e30);
+assert.equal(M.nextAscensionRequirement(43),4e30);
+assert.equal(M.nextAscensionRequirement(99),9.9e63);
 
 const route=M.optimizeLegacyPartitions({
   discardedAscensions:28,
@@ -31,19 +36,35 @@ const route=M.optimizeLegacyPartitions({
 assert.deepEqual(route.legacyTargets,[22]);
 assert.equal(route.unlockDiscarded,50);
 
-for(const terminalSalesPerSecond of [15.75,M.THEORETICAL_TERMINAL_SALES_RATE]){
+for(const [terminalSalesPerSecond,extra,finalDiscarded,afterA500,observable] of [[15.75,20,70,570,26621],[M.THEORETICAL_TERMINAL_SALES_RATE,19,69,569,26624]]){
   const prep=M.optimizeCompressionPreparation({discardedAscensions:50,terminalSalesPerSecond,rarePercent:100,gemLevel:10,totalCrushLog:0,bestLevel:9000});
-  assert.deepEqual(prep.overlap.extraLegacyCycles,[20]);
-  assert.deepEqual(prep.sequential.extraLegacyCycles,[20]);
-  assert.equal(prep.overlap.finalCycleDiscarded,70);
-  assert.equal(prep.afterA500LegacyDiscarded,570);
-  assert.equal(prep.observableBestLevel,26621);
-  assert.equal(prep.levelTarget,26621);
-  assert.equal(prep.levelPush.expLevel,930);
-  assert.equal(prep.levelPush.rareValueLevel,925);
-  assert.ok(prep.levelPush.seconds>0);
+  assert.deepEqual(prep.overlap.extraLegacyCycles,[extra]);
+  assert.equal(prep.overlap.finalCycleDiscarded,finalDiscarded);
+  assert.equal(prep.afterA500LegacyDiscarded,afterA500);
+  assert.equal(prep.observableBestLevel,observable);
+  assert.equal(prep.levelTarget,observable);
+  assert.equal(prep.levelPush.expLevel,940);
+  assert.equal(prep.levelPush.rareValueLevel,935);
+  assert.ok(Number.isFinite(prep.levelPush.seconds)&&prep.levelPush.seconds>0);
 }
 
 assert.ok(M.maxCoreLevel(0,M.totalCoreForAscension(500))>52);
 
-console.log('singularity v76 model regression: PASS');
+const switchPlan=M.optimizeCompressionSwitchPlan({
+  ascensionCount:0,
+  discardedAscensions:52,
+  maxLevelEver:9485,
+  normalAutoUnlocked:true,
+  dpsCalibration:1,
+  hpCalibration:1,
+  manualClickRate:4,
+  uiClickRate:4,
+  normalAutoUpdatesPerSecond:36.5
+},M.DEFAULT_MEASUREMENTS,{probeLimit:8,roadmapSteps:32});
+assert.equal(switchPlan.switchAscension,1);
+assert.equal(switchPlan.certifiedThrough,499);
+assert.deepEqual(switchPlan.rows.map(x=>x.preferred),['off','on','on','on','on','on']);
+assert.ok(switchPlan.rows[0].offEta<switchPlan.rows[0].onEta);
+assert.ok(switchPlan.rows[1].onEta<switchPlan.rows[1].offEta);
+
+console.log('singularity r80 model regression: PASS');
