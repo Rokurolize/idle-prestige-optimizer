@@ -555,7 +555,7 @@
     return {intercept,scale,mse};
   }
 
-  function calibrationKey(rows,autoRate){return autoRate+'|'+rows.map(m=>[Math.floor(finite(m.targetLevel)),finite(m.seconds),finite(m.slowdown),...(m.core||[]),...(m.ingot||[]),finite(m.totalIngotsEarned,0),finite(m.dpsCalibration,1),finite(m.damageBoostMultiplier,1),finite(m.hpCalibration,1)].join(',')).join(';')}
+  function calibrationKey(rows,autoRate){return autoRate+'|'+rows.map(m=>[Math.floor(finite(m.targetLevel)),finite(m.seconds),finite(m.slowdown),finite(m.compressionE,0),finite(m.compressionRequiredIngots,0),...(m.core||[]),...(m.ingot||[]),finite(m.totalIngotsEarned,0),finite(m.dpsCalibration,1),finite(m.damageBoostMultiplier,1),finite(m.hpCalibration,1)].join(',')).join(';')}
   let defaultCalibrationKey=null;
   function fitCalibration(measurements,normalAutoUpdatesPerSecond=DEFAULT_NORMAL_AUTO_UPDATES_PER_SECOND){
     const rows=(measurements||[]).filter(m=>finite(m.targetLevel)>=50&&finite(m.seconds)>0&&finite(m.slowdown)>=1&&Array.isArray(m.core)&&Array.isArray(m.ingot)),autoRate=Math.min(100,Math.max(.1,finite(normalAutoUpdatesPerSecond,DEFAULT_NORMAL_AUTO_UPDATES_PER_SECOND)));
@@ -565,13 +565,13 @@
     const cached=calibrationCache.get(cacheKey);if(cached)return cached;
     const groups=new Map();
     for(const m of rows){
-      const key=JSON.stringify([m.core,m.ingot,finite(m.slowdown),finite(m.totalIngotsEarned,0),finite(m.dpsCalibration,1),finite(m.damageBoostMultiplier,1),finite(m.hpCalibration,1)]),group=groups.get(key)||{rows:[],maxTarget:0,core:m.core,ingot:m.ingot,slowdown:finite(m.slowdown),totalIngotsEarned:finite(m.totalIngotsEarned,0),dpsCalibration:finite(m.dpsCalibration,1),damageBoostMultiplier:finite(m.damageBoostMultiplier,1),hpCalibration:finite(m.hpCalibration,1)};
+      const compressionLog=Math.max(0,finite(m.compressionE,0)),compressionRequiredIngots=Math.max(0,finite(m.compressionRequiredIngots,0)),key=JSON.stringify([m.core,m.ingot,finite(m.slowdown),compressionLog,compressionRequiredIngots,finite(m.totalIngotsEarned,0),finite(m.dpsCalibration,1),finite(m.damageBoostMultiplier,1),finite(m.hpCalibration,1)]),group=groups.get(key)||{rows:[],maxTarget:0,core:m.core,ingot:m.ingot,slowdown:finite(m.slowdown),compressionE:compressionLog,compressionRequiredIngots,totalIngotsEarned:finite(m.totalIngotsEarned,0),dpsCalibration:finite(m.dpsCalibration,1),damageBoostMultiplier:finite(m.damageBoostMultiplier,1),hpCalibration:finite(m.hpCalibration,1)};
       group.rows.push(m);group.maxTarget=Math.max(group.maxTarget,Math.floor(m.targetLevel));groups.set(key,group);
     }
     function fitAtCap(cap,autoScale){
       const pairs=[];
       for(const g of groups.values()){
-        const curve=simulateCurve({maxTarget:g.maxTarget,core:g.core,ingot:g.ingot,slowdown:g.slowdown,physicalCap:cap,totalIngotsEarned:g.totalIngotsEarned,dpsCalibration:g.dpsCalibration,damageBoostMultiplier:g.damageBoostMultiplier,hpCalibration:g.hpCalibration,normalAutoUpdatesPerSecond:autoRate,normalAutoCalibration:{scale:autoScale},cache:false});
+        const curve=simulateCurve({maxTarget:g.maxTarget,core:g.core,ingot:g.ingot,slowdown:g.slowdown,physicalCap:cap,totalIngotsEarned:g.totalIngotsEarned,dpsCalibration:g.dpsCalibration,damageBoostMultiplier:g.damageBoostMultiplier,hpCalibration:g.hpCalibration,compressionEnabled:g.compressionE>0,compressionE:g.compressionE,compressionRequiredIngots:g.compressionRequiredIngots,normalAutoUpdatesPerSecond:autoRate,normalAutoCalibration:{scale:autoScale},cache:false});
         for(const m of g.rows)pairs.push([curve.times[Math.floor(m.targetLevel)],finite(m.seconds)]);
       }
       return {physicalCap:cap,...linearFit(pairs.map(p=>p[0]),pairs.map(p=>p[1]))};
@@ -958,18 +958,19 @@
   function optimizeCompressionSwitchPlan(input,measurements,opts={}){
     const discarded=Math.max(0,Math.floor(finite(input&&input.discardedAscensions))),unlocked=compressionUnlocked(discarded),bestLevel=Math.max(0,Math.floor(finite(input&&input.maxLevelEver))),probeLimit=Math.max(4,Math.min(20,Math.floor(finite(opts.probeLimit,8)))),roadmapSteps=Math.max(1,Math.floor(finite(opts.roadmapSteps,32)));
     if(!unlocked)return {unlocked:false,switchAscension:null,modeNow:'off',action:'locked',rows:[],certifiedThrough:null};
-    const startIngot=legacyStartIngot(discarded),rows=[];
+    const startIngot=legacyStartIngot(discarded),rows=[],currentAscension=Math.max(0,Math.floor(finite(input&&input.ascensionCount))),hasCurrentState=Number.isFinite(Number(input&&input.heldIngots))&&Array.isArray(input&&input.ingotLevels)&&input.ingotLevels.length===8;
     function freshState(a){return {...input,ascensionCount:a,totalCore:totalCoreForAscension(a),heldIngots:startIngot,totalIngotsEarned:startIngot,prestigeCount:0,currentCoreLevels:[0,0,0,0,0],currentSlowdownLevel:0,normalAutoUnlocked:true,ingotLevels:Array(8).fill(0),maxTargetLevel:ascensionSearchMaxLevel(a,Array(8).fill(0)),nextRequirement:nextAscensionRequirement(a),discardedAscensions:discarded,maxLevelEver:bestLevel}}
+    function stateAt(a){if(a!==currentAscension||!hasCurrentState)return freshState(a);return {...input,ascensionCount:a,totalCore:Math.max(0,finite(input.totalCore,totalCoreForAscension(a))),heldIngots:Math.max(0,finite(input.heldIngots)),totalIngotsEarned:Math.max(0,finite(input.totalIngotsEarned,inferTotalIngotsEarned(input.heldIngots,input.ingotLevels,true))),prestigeCount:Math.max(0,Math.floor(finite(input.prestigeCount))),currentCoreLevels:Array.isArray(input.currentCoreLevels)&&input.currentCoreLevels.length===5?input.currentCoreLevels.slice():[0,0,0,0,0],currentSlowdownLevel:Math.max(0,Math.floor(finite(input.currentSlowdownLevel))),normalAutoUnlocked:true,ingotLevels:input.ingotLevels.slice(),maxTargetLevel:Math.max(100,Math.floor(finite(input.maxTargetLevel,ascensionSearchMaxLevel(a,input.ingotLevels)))),nextRequirement:nextAscensionRequirement(a),discardedAscensions:discarded,maxLevelEver:bestLevel}}
     const hardness=a=>Math.log10(Math.max(1,nextAscensionRequirement(a)))-a*Math.log10(3);
     function futureMinHardness(from){let min=Infinity;for(let a=Math.max(0,from);a<ASCENSION_MAX_COUNT;a++)min=Math.min(min,hardness(a));return min}
     let certifiedThrough=null,certificateReason='';
     for(let a=0;a<ASCENSION_MAX_COUNT&&a<=probeLimit;a++){
-      const state=freshState(a),off=optimizeCompressionModeAtAscension(state,measurements,false,roadmapSteps),on=optimizeCompressionModeAtAscension(state,measurements,true,roadmapSteps),preferred=on.eta<off.eta-1e-9?'on':'off';
+      const state=stateAt(a),off=optimizeCompressionModeAtAscension(state,measurements,false,roadmapSteps),on=optimizeCompressionModeAtAscension(state,measurements,true,roadmapSteps),preferred=on.eta<off.eta-1e-9?'on':'off';
       rows.push({ascension:a,requiredIngots:state.nextRequirement,hardness:hardness(a),offEta:off.eta,onEta:on.eta,preferred,speedup:preferred==='on'&&on.eta>0?off.eta/on.eta:preferred==='off'&&off.eta>0?on.eta/off.eta:1,offPlan:off.plan,onPlan:on.plan,offIngotLevels:off.ingotLevels,onIngotLevels:on.ingotLevels});
       if(a>=5){const tail=rows.slice(-5),firstOn=rows.findIndex(x=>x.preferred==='on'),futureMin=futureMinHardness(a+1);if(firstOn>=0&&tail.every(x=>x.preferred==='on')&&futureMin>=hardness(a)-1e-12){certifiedThrough=ASCENSION_MAX_COUNT-1;certificateReason=`A${a}まで5連続でONが実測モデル優位。以後は required▲ / 3^A の最小値がA${a}より悪化せず、Core総量は3^Aで増え、Compression Eも低下しないためOFF側が相対的に再逆転する支配条件がない。`;break}}
     }
     let switchAscension=null;for(let i=0;i<rows.length;i++)if(rows[i].preferred==='on'&&rows.slice(i).every(x=>x.preferred==='on')){switchAscension=rows[i].ascension;break}
-    const currentAscension=Math.max(0,Math.floor(finite(input&&input.ascensionCount))),modeNow=switchAscension!==null&&currentAscension>=switchAscension?'on':'off',action=modeNow==='on'?'compression_on':switchAscension!==null?'keep_off_until_switch':'keep_off';
+    const modeNow=switchAscension!==null&&currentAscension>=switchAscension?'on':'off',action=modeNow==='on'?'compression_on':switchAscension!==null?'keep_off_until_switch':'keep_off';
     return {unlocked:true,discardedAscensions:discarded,bestLevel,compressionE:compressionE(bestLevel,discarded),switchAscension,modeNow,action,rows,certifiedThrough,certificateReason,roadmapSteps,startIngot};
   }
 
@@ -986,7 +987,7 @@
     }
     const switchInput={...input,ascensionCount:discarded>=COMPRESSION_UNLOCK_DISCARDED?currentAscension:0,discardedAscensions:unlockDiscarded,maxLevelEver:bestLevel},compressionSwitch=optimizeCompressionSwitchPlan(switchInput,measurements||[],{probeLimit:8,roadmapSteps:32});
     const compression=optimizeCompressionPreparation({...postOpts,discardedAscensions:unlockDiscarded}),theoretical=optimizeCompressionPreparation({...postOpts,discardedAscensions:unlockDiscarded,terminalSalesPerSecond:THEORETICAL_TERMINAL_SALES_RATE}),primaryFinalDiscarded=compression.overlap.finalCycleDiscarded,totalOverlapSeconds=preCompressionSeconds+compression.completionOverlapSeconds,totalSequentialSeconds=preCompressionSeconds+compression.completionSequentialSeconds,theoreticalSeconds=preCompressionSeconds+theoretical.completionOverlapSeconds,nextLegacyAt=legacyTargets.length?legacyTargets[0]:null;
-    let nextAction;if(discarded<COMPRESSION_UNLOCK_DISCARDED)nextAction=nextLegacyAt!==null&&currentAscension>=nextLegacyAt?'legacy_now':'continue_to_legacy_target';else if(compressionSwitch.switchAscension===null)nextAction='continue_without_compression';else if(currentAscension<compressionSwitch.switchAscension)nextAction='continue_without_compression_to_switch';else if(currentAscension===compressionSwitch.switchAscension)nextAction='enable_compression_now';else nextAction='compression_on_to_A500';
+    let nextAction;if(discarded<COMPRESSION_UNLOCK_DISCARDED)nextAction=nextLegacyAt!==null&&currentAscension>=nextLegacyAt?'legacy_now':'continue_to_legacy_target';else if(compressionSwitch.switchAscension===null)nextAction=input&&input.compressionEnabled?'disable_compression':'continue_without_compression';else if(currentAscension<compressionSwitch.switchAscension)nextAction=input&&input.compressionEnabled?'disable_compression_until_switch':'continue_without_compression_to_switch';else nextAction=input&&input.compressionEnabled?'compression_on_to_A500':'enable_compression_now';
     return {plan:{nextAction,nextLegacyAt,legacyTargets,preCompressionSeconds,unlockDiscarded,compressionSwitch,compressionSwitchAscension:compressionSwitch.switchAscension,compressionModeNow:compressionSwitch.modeNow,compression,totalOverlapSeconds,totalSequentialSeconds,theoreticalSeconds,terminalSalesPerSecond,theoreticalTerminalSalesPerSecond:THEORETICAL_TERMINAL_SALES_RATE,finalCycleDiscarded:primaryFinalDiscarded,extraCompressionLegacyCycles:compression.overlap.extraLegacyCycles,afterA500LegacyDiscarded:compression.afterA500LegacyDiscarded,observableBestLevel:compression.observableBestLevel,levelTarget:compression.levelTarget,currentBestLevel:bestLevel,observableReadyAtCurrentBest:compression.observableReadyAtCurrentBest},currentPlan,freshStatesEvaluated,assumptions:{preCompressionFutureIngotRoadmap:false,compressionRarePercent:rarePercent,compressionGemLevel:gemLevel,prestigeGateScale,compressionEtaMeaning:'A0からのCompression ON/OFF切替はr80物理モデル+Ingot再投資で探索。後半の総ETAレンジはterminal-rate外側モデルを併記。'}};
   }
 
