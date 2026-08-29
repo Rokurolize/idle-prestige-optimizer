@@ -63,9 +63,9 @@ for(const [level,seconds] of [[1000,52],[2000,101],[2365,119],[3000,152],[3500,1
 // the optimizer treated the fitted terminal-contact cap as the spawn cap.
 const a9Core=[9,14,9,8,6],a9Ingot=[0,31,0,29,0,0,17,0];
 const spawn1k=M.topSpawnRate(a9Core,a9Ingot,4,1000),spawn2k=M.topSpawnRate(a9Core,a9Ingot,4,2000);
-assert.ok(Math.abs(spawn1k.raw-20.65621964097149)<1e-9);
+assert.ok(Math.abs(spawn1k.raw-20.656220467220308)<1e-9);
 assert.equal(spawn1k.actual,20);
-assert.ok(Math.abs(spawn2k.actual-10.328109820485745)<1e-9);
+assert.ok(Math.abs(spawn2k.actual-10.328110233610154)<1e-9);
 
 // At Lv1292 with Rare Rate maxed and EXP Lv31, Rare Value Lv0 -> Lv7 is not
 // overflow-clipped: it raises useful EXP per processed terminal ore by exactly 70%.

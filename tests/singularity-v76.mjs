@@ -61,10 +61,12 @@ const switchPlan=M.optimizeCompressionSwitchPlan({
   uiClickRate:4,
   normalAutoUpdatesPerSecond:36.5
 },M.DEFAULT_MEASUREMENTS,{probeLimit:8,roadmapSteps:32});
-assert.equal(switchPlan.switchAscension,1);
+assert.equal(switchPlan.switchAscension,2);
+assert.equal(switchPlan.verifiedThrough,6);
 assert.equal(switchPlan.certifiedThrough,499);
-assert.deepEqual(switchPlan.rows.map(x=>x.preferred),['off','on','on','on','on','on']);
+assert.deepEqual(switchPlan.rows.map(x=>x.preferred),['off','off','on','on','on','on','on']);
 assert.ok(switchPlan.rows[0].offEta<switchPlan.rows[0].onEta);
-assert.ok(switchPlan.rows[1].onEta<switchPlan.rows[1].offEta);
+assert.ok(switchPlan.rows[1].offEta<switchPlan.rows[1].onEta);
+assert.ok(switchPlan.rows[2].onEta<switchPlan.rows[2].offEta);
 
 console.log('singularity r80 model regression: PASS');

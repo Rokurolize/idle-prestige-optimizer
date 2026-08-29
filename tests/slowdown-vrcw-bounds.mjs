@@ -15,12 +15,12 @@ const core=[41,0,39,9,26];
 const ingot=[66,68,64,68,0,61,17,62];
 const feed=M.normalEffect(7,30);
 
-// Preserve the observed normal-range game rates while matching OreSpawner's
-// baseSpawnInterval=2.0 and minimum effective rate=0.01 at the extreme floor.
-assert.ok(Math.abs(M.topSpawnRate(core,ingot,feed,1e23).actual-8.082906019007392)<1e-12);
-assert.ok(Math.abs(M.topSpawnRate(core,ingot,feed,1e24).actual-0.8082906019007391)<1e-12);
-assert.ok(Math.abs(M.topSpawnRate(core,ingot,feed,1e25).actual-0.08082906019007391)<1e-12);
-assert.equal(M.topSpawnRate(core,ingot,feed,1e42).actual,0.005,'VRCW extreme slowdown floor is one top ore per 200 seconds');
+// Preserve the observed normal-range game rates while matching the instantiated
+// r80 scene's baseSpawnInterval=1.6666666 and minimum effective rate=0.01.
+assert.ok(Math.abs(M.topSpawnRate(core,ingot,feed,1e23).actual-8.082906342323644)<1e-12);
+assert.ok(Math.abs(M.topSpawnRate(core,ingot,feed,1e24).actual-0.8082906342323645)<1e-12);
+assert.ok(Math.abs(M.topSpawnRate(core,ingot,feed,1e25).actual-0.08082906342323644)<1e-12);
+assert.ok(Math.abs(M.topSpawnRate(core,ingot,feed,1e42).actual-0.00600000024000001)<1e-15,'r80 extreme slowdown floor follows 0.01 / 1.6666666');
 
 console.log(JSON.stringify({
   slowdownMaxLevel:M.SLOWDOWN.length-1,
