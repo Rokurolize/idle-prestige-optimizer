@@ -99,8 +99,8 @@ grep -q 'beamWidth=5' "$model"
 grep -q 'marginal_no_gain' "$model"
 grep -q 'bulkTargets' "$model"
 grep -q 'maxSupplyCappedSlowdown' "$model"
-grep -q "MODEL_REVISION='r80-runtime-20260829b'" "$model"
-grep -q 'src="ascension-model.js?v=r80-runtime-20260829b"' "$page"
+grep -q "MODEL_REVISION='r80-runtime-20260829c'" "$model"
+grep -q 'src="ascension-model.js?v=r80-runtime-20260829c"' "$page"
 grep -q "importScripts('ascension-model.js'+self.location.search)" "$worker"
 grep -Fq 'new Worker(`ascension-worker.js?v=${encodeURIComponent(M.MODEL_REVISION)}`)' "$page"
 grep -q 'modelRevision:M.MODEL_REVISION' "$page"
@@ -128,7 +128,7 @@ purchase_line=$(grep -n 'id="purchaseCard"' "$page" | head -1 | cut -d: -f1)
 result_line=$(grep -n 'id="resultTitle"' "$page" | head -1 | cut -d: -f1)
 calc_line=$(grep -n 'ランキング研究計算機 — 任意LvのHP / 必要DPS / Auto OFF比較' "$page" | head -1 | cut -d: -f1)
 [[ $input_line -lt $purchase_line && $purchase_line -lt $result_line && $result_line -lt $calc_line ]]
-grep -q 'if(worker&&workerBusy){worker.terminate();worker=null}' "$page"
+grep -q 'if(worker){worker.terminate();worker=null}' "$page"
 ! grep -q 'function finish(){if(worker){worker.terminate()' "$page"
 # Internal/model-only state must not be requested from the user.
 ! grep -q 'id="totalEarned"' "$page"
