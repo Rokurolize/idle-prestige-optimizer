@@ -79,6 +79,16 @@ assert.deepEqual(after.ingotLevels,Array(8).fill(0));
 assert.equal(M.nextAscensionRequirement(99),9.9e63);
 assert.equal(M.nextAscensionRequirement(100),Math.floor(9.9e63*3.55));
 
+// The reported [28,31,28,9,18] Core allocation cannot exist at A19, but it fits A20
+// with 159,222,419 Core left — matching the game screenshot's 159.22M. The game also
+// shows the A20 requirement 5e17, so an A19 optimizer state is one Ascension behind.
+const reportedCore=[28,31,28,9,18],reportedCoreCost=M.coreBundleCost(reportedCore);
+assert.equal(reportedCoreCost,3327561981);
+assert.ok(reportedCoreCost>M.totalCoreForAscension(19));
+assert.equal(M.totalCoreForAscension(20)-reportedCoreCost,159222419);
+assert.equal(M.nextAscensionRequirement(19),9e16);
+assert.equal(M.nextAscensionRequirement(20),5e17);
+
 // Regression for the reported A16 Compression wall: the former Lv4433 recommendation
 // is physically impossible with the game-displayed Prestige multiplier x6.93K.
 const cal=M.fitCalibration(M.DEFAULT_MEASUREMENTS,36.5);
