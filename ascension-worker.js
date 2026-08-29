@@ -33,13 +33,29 @@ function roadmapTask(row,input,measurements,result,maxIngotSteps,id){
   });
 }
 
+function roadmapFinalInput(input,roadmap){
+  const post=roadmap&&roadmap.postBootstrapState||input||{};
+  return {...post,objective:'ascensionEta',normalAutoUnlocked:true,heldIngots:Number(roadmap&&roadmap.finalHeld)||0,totalIngotsEarned:Number(roadmap&&roadmap.finalTotalIngotsEarned)||0,prestigeCount:Math.max(0,Math.floor(Number(roadmap&&roadmap.finalPrestigeCount)||0)),currentCoreLevels:Array.isArray(roadmap&&roadmap.finalCurrentCoreLevels)?roadmap.finalCurrentCoreLevels.slice():post.currentCoreLevels,currentSlowdownLevel:roadmap&&roadmap.finalCurrentSlowdownLevel,ingotLevels:Array.isArray(roadmap&&roadmap.targetLevels)?roadmap.targetLevels.slice():(post.ingotLevels||[]).slice(),nextRequirement:Number.isFinite(Number(post.nextRequirement))?Number(post.nextRequirement):model.nextAscensionRequirement(post.ascensionCount)};
+}
+
 async function parallelAscension(msg){
   const rawInput={...(msg.input||{})},input={...rawInput,nextRequirement:Number.isFinite(Number(rawInput.nextRequirement))?Number(rawInput.nextRequirement):model.nextAscensionRequirement(rawInput.ascensionCount)},measurements=msg.measurements||[],id=msg.id,totalCore=Math.max(0,Number(input.totalCore)||model.totalCoreForAscension(input.ascensionCount));
   // Fixed-Core is latency critical and the branch-and-bound model now proves away
   // slower Core-Ingot bands. Running it in this already-loaded worker avoids child
   // startup overhead and returns the complete fixed recommendation immediately.
-  const fixedOnly=model.optimizeAscension({...input,skipManual:true,disableParallel:true},measurements),manualBound=model.manualCoreEtaLowerBound(input,measurements,fixedOnly.calibration,input.ingotLevels||[],totalCore,fixedOnly.fixedPlan&&fixedOnly.fixedPlan.totalEta),manualPruned=!!(fixedOnly.fixedPlan&&manualBound.eta>=fixedOnly.fixedPlan.totalEta-1e-9),fixedResult={...fixedOnly,manualPending:!manualPruned,manualPrunedByLowerBound:manualPruned,manualLowerBound:manualBound},fixedRow={kind:'fixed',result:fixedOnly};
-  self.postMessage({type:'result',id,goal:'ascension',result:fixedResult,modelRevision:model.MODEL_REVISION,partial:true});
+  const fixedOnly=model.optimizeAscension({...input,skipManual:true,disableParallel:true},measurements),fixedRow={kind:'fixed',result:fixedOnly},fixedPending={...fixedOnly,manualPending:true,manualPrunedByLowerBound:false,manualLowerBound:null};
+  // The complete fixed-Core result is useful immediately. Do not make the user wait
+  // for the independent manual-Core lower-bound proof before painting it; that proof
+  // can update the strategy verdict in a later message.
+  self.postMessage({type:'result',id,goal:'ascension',result:fixedPending,modelRevision:model.MODEL_REVISION,partial:true});
+  const manualBound=model.manualCoreEtaLowerBound(input,measurements,fixedOnly.calibration,input.ingotLevels||[],totalCore,fixedOnly.fixedPlan&&fixedOnly.fixedPlan.totalEta),manualPruned=!!(fixedOnly.fixedPlan&&manualBound.eta>=fixedOnly.fixedPlan.totalEta-1e-9),fixedResult={...fixedOnly,manualPending:!manualPruned,manualPrunedByLowerBound:manualPruned,manualLowerBound:manualBound};
+  if(manualPruned)self.postMessage({type:'manual',id,goal:'ascension',result:fixedResult,modelRevision:model.MODEL_REVISION});
+
+  // The fixed-Core purchase roadmap is the next latency-critical answer. Compute it
+  // before spawning the manual-Core shard fan-out so those background workers cannot
+  // steal CPU from the user's purchase recommendation.
+  let fixedRoadmap=null;
+  try{fixedRoadmap=model.optimizeIngotUpgrades({...input,skipManual:true},fixedResult,measurements,Number(msg.maxIngotSteps)||192);self.postMessage({type:'ingot',id,goal:'ascension',ingotPlan:fixedRoadmap,modelRevision:model.MODEL_REVISION,partial:true})}catch(error){/* fixed recommendation remains usable */}
 
   const manualFrontier=manualPruned?[]:model.paretoCoreCandidates(totalCore,0),manualTasks=[];
   for(let index=0;index<manualFrontier.length;index++)manualTasks.push(childTask('manual',{...input,skipFixed:true,manualCoreShard:{index},disableParallel:true},measurements,id,{index}));
@@ -52,10 +68,13 @@ async function parallelAscension(msg){
     for(const row of manualRows)row.worker.terminate();
     return fullResult;
   });
-
-  let fixedRoadmap=null;
-  try{fixedRoadmap=model.optimizeIngotUpgrades(manualPruned?{...input,skipManual:true}:input,fixedResult,measurements,Number(msg.maxIngotSteps)||192);self.postMessage({type:'ingot',id,goal:'ascension',ingotPlan:fixedRoadmap,modelRevision:model.MODEL_REVISION,partial:true})}catch(error){/* fixed recommendation remains usable */}
   await Promise.allSettled([manualPromise]);
+  if(fixedRoadmap&&fixedRoadmap.finalStrategyPending){
+    try{
+      const finalResult=model.optimizeAscension(roadmapFinalInput(input,fixedRoadmap),measurements);
+      self.postMessage({type:'roadmap-strategy',id,goal:'ascension',result:finalResult,modelRevision:model.MODEL_REVISION});
+    }catch(error){/* the fast fixed roadmap remains usable */}
+  }
 }
 
 self.onmessage=async function(event){

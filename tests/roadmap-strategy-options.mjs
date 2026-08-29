@@ -45,7 +45,7 @@ assert.deepEqual(roadmap.finalManualPlan.core,result.manualPlan.core);
 
 // A roadmap that actually buys upgrades must also expose strategies computed
 // for the purchased final Ingot state, not stale pre-purchase alternatives.
-const purchaseLevels=[0,26,0,20,0,0,0,0],purchaseHeld=5e8,purchaseInput={ascensionCount:7,totalCore:2186,heldIngots:purchaseHeld,totalIngotsEarned:M.inferTotalIngotsEarned(purchaseHeld,purchaseLevels,true),prestigeCount:3,currentCoreLevels:[0,0,0,0,0],currentSlowdownLevel:0,normalAutoUnlocked:true,ingotLevels:purchaseLevels,maxTargetLevel:1400,oneShotMargin:1,strictOneShot:true,dpsCalibration:1,hpCalibration:1,uiClickRate:4,normalAutoUpdatesPerSecond:36.5};
+const purchaseLevels=[0,26,0,20,0,0,0,0],purchaseHeld=5e8,purchaseInput={ascensionCount:7,totalCore:2186,heldIngots:purchaseHeld,totalIngotsEarned:M.inferTotalIngotsEarned(purchaseHeld,purchaseLevels,true),prestigeCount:3,currentCoreLevels:[0,0,0,0,0],currentSlowdownLevel:0,normalAutoUnlocked:true,ingotLevels:purchaseLevels,maxTargetLevel:1400,oneShotMargin:1,strictOneShot:true,dpsCalibration:1,hpCalibration:1,uiClickRate:4,normalAutoUpdatesPerSecond:36.5,includeFinalManualStrategy:true};
 const purchaseResult=M.optimizeAscension(purchaseInput,M.DEFAULT_MEASUREMENTS),purchaseRoadmap=M.optimizeIngotUpgrades(purchaseInput,purchaseResult,M.DEFAULT_MEASUREMENTS,3);
 assert.ok(purchaseRoadmap.steps.length>0,'purchase fixture must exercise a changed final Ingot state');
 assert.ok(purchaseRoadmap.finalFixedPlan&&purchaseRoadmap.finalManualPlan);
