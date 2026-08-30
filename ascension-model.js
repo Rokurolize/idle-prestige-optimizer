@@ -5,7 +5,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   'use strict';
 
-  const MODEL_REVISION='r80-runtime-20260830a';
+  const MODEL_REVISION='r80-plus-r82-core-feed-20260830a';
 
   // CRUSH FACTORY IDLE v1.0.4 / VRCW asset r80, SHA-256
   // 73bf14ed97d6ef06875e78ef6cd4bf3cb95641ee10464007a3f28ac23f25452d.
@@ -67,13 +67,14 @@
     optimizerCap:[1023,1023,1023,1023,10,1023,17,100]
   };
   const CORE_NAMES=['収入倍率','インゴット倍率','破壊力倍率','コスト減','供給加速'];
-  const CORE_FEED_NEXT_COST=[2,8,16,64,128,1080,2160,8000,20000,40000,200000,500000,1000000,5000000,8000000,60000000,100000000,200000000,1000000000,1500000000,10000000000,25000000000,50000000000,250000000000,300000000000,3000000000000,5000000000000,30000000000000,60000000000000,120000000000000,600000000000000,1000000000000000,6000000000000000,10000000000000000,20000000000000000,150000000000000000,300000000000000000,1500000000000000000,2500000000000000000,15000000000000000000,30000000000000000000,60000000000000000000,300000000000000000000,500000000000000000000,4000000000000000000000,6000000000000000000000];
+  const CORE_FEED_NEXT_COST=[2,8,16,64,128,1080,2160,8000,20000,40000,200000,500000,1000000,5000000,8000000,60000000,100000000,200000000,1000000000,1500000000,10000000000,25000000000,50000000000,250000000000,300000000000,3000000000000,5000000000000,30000000000000,60000000000000,120000000000000,600000000000000,1000000000000000,6000000000000000,10000000000000000,20000000000000000,150000000000000000,300000000000000000,1500000000000000000,2500000000000000000,15000000000000000000,30000000000000000000,60000000000000000000,300000000000000000000,500000000000000000000,4000000000000000000000,6000000000000000000000,20000000000000000000000,50000000000000000000000,150000000000000000000000,400000000000000000000000,1000000000000000000000000,3000000000000000000000000,8000000000000000000000000,20000000000000000000000000,60000000000000000000000000,150000000000000000000000000];
   const CORE_FEED_CUM=[0];
   for(const c of CORE_FEED_NEXT_COST)CORE_FEED_CUM.push(CORE_FEED_CUM[CORE_FEED_CUM.length-1]+c);
   const SPECIAL_PREFIX=[1,2,4,6,10,100,1000,2000,10000];
   const SLOWDOWN=[...SPECIAL_PREFIX];
   for(let p=5;p<=42;p++)SLOWDOWN.push(Math.pow(10,p));
-  const CORE_FEED=SLOWDOWN.slice();
+  const CORE_FEED=[...SPECIAL_PREFIX];
+  for(let p=5;p<=52;p++)CORE_FEED.push(Math.pow(10,p));
   const ASCENSION_INGOT_REQ=[250,50000,500000,5000000,50000000,250000000,2500000000,10000000000,50000000000,350000000000,800000000000,6000000000000,20000000000000,80000000000000,400000000000000,2e15,5e15,7e15,3e16,9e16,5e17,2e18,5e18,2e19,7e19,3e20,9e20,4e21,2e22,5e22,3e23,8e23,3e24,9e24,4e25,2e26,5e26,2e27,7e27,3e28,8e28,3e29,9e30,4e30,2e31,5e31,2e32,7e32,3e33,8e33,3e34,2e35,4e35,2e36,5e36,2e37,7e37,3e38,9e38,4e39,2e40,4e40,2e41,6e41,2e42,7e42,3e43,9e43,3e44,2e45,4e45,2e46,5e46,2e47,7e47,3e48,9e48,3e49,2e50,4e50,2e51,6e51,2e52,7e52,3e53,9e53,4e54,2e55,6e55,2e56,6e56,2e57,7e57,3e58,9e58,4e59,2e60,4e60,2e61,9.9e63];
 
   const DEFAULT_INGOT_LEVELS=[24,29,24,29,10,23,17,23];
@@ -388,6 +389,23 @@
       else if(slowdown>best)break;
     }
     return best;
+  }
+  function minimumCoreFeedLevelForSlowdown(slowdown=SLOWDOWN[SLOWDOWN.length-1],ingotLevels=Array(8).fill(0),normalFeed=1){
+    const levels=ingotLevels||Array(8).fill(0),need=MAX_TOP_SPAWN_RATE*BASE_SPAWN_INTERVAL*Math.max(1,finite(slowdown,1))/Math.max(1e-300,Math.max(.01,finite(normalFeed,1))*ingotEffect(3,levels[3]||0));
+    for(let level=0;level<CORE_FEED.length;level++)if(coreEffect(4,level)>=need*(1-1e-12))return level;
+    return CORE_FEED.length-1;
+  }
+  function compressionFarmPriorityCore(totalCore,opts={}){
+    const budget=Math.max(0,finite(totalCore)),maxFeed=maxCoreLevel(4,budget),slowdown=Math.max(1,finite(opts.slowdown,SLOWDOWN[SLOWDOWN.length-1])),ingotLevels=opts.ingotLevels||Array(8).fill(0),normalFeed=Math.max(.01,finite(opts.normalFeed,1)),feedCap=minimumCoreFeedLevelForSlowdown(slowdown,ingotLevels,normalFeed),feed=Math.min(maxFeed,feedCap),remaining=Math.max(0,budget-coreCost(4,feed)),damage=maxCoreLevel(2,remaining);
+    return [0,0,damage,0,feed];
+  }
+  function compressionFarmCoreTable(fromAscension=0,toAscension=ASCENSION_MAX_COUNT){
+    const from=Math.max(0,Math.floor(finite(fromAscension))),to=Math.max(from,Math.min(ASCENSION_MAX_COUNT,Math.floor(finite(toAscension,ASCENSION_MAX_COUNT)))),rows=[],slowdown=SLOWDOWN[SLOWDOWN.length-1],normalFeed=normalEffect(7,NORMAL.max[7]),feedCap=minimumCoreFeedLevelForSlowdown(slowdown,Array(8).fill(0),normalFeed);
+    for(let a=from;a<=to;a++){
+      const total=totalCoreForAscension(a),maxFeedLevel=maxCoreLevel(4,total),core=compressionFarmPriorityCore(total,{slowdown,ingotLevels:Array(8).fill(0),normalFeed}),used=coreBundleCost(core),left=Math.max(0,total-used),feed=core[4],damage=core[2];
+      rows.push({ascensionCount:a,totalCore:total,core,feedLevel:feed,damageLevel:damage,maxFeedLevel,feedCapped:feed<maxFeedLevel,feedCapLevel:feedCap,usedCore:used,leftoverCore:left});
+    }
+    return rows;
   }
 
   function expectedUsefulExpPerTerminal(level,slowdown,normalRareLevel,ingotLevels){
@@ -1516,6 +1534,6 @@
   return {
     MODEL_REVISION,BASE_SPAWN_INTERVAL,MIN_SPAWN_RATE,MIN_SPAWN_INTERVAL,TERMINAL_ORES_PER_TOP,MAX_TOP_SPAWN_RATE,NORMAL_AUTO_UNLOCK_COST,OUTER_DAMAGE_FACTOR,ORE_MAX_CRUSH_SECONDS,MAX_ZONE_ORES,ORE_TIER_HP_MULTIPLIER,ORICHALCUM_HP_MULTIPLIER,LEGACY_REQUIRED_ASCENSIONS,COMPRESSION_UNLOCK_DISCARDED,LEGACY_START_INGOT_CAP,ASCENSION_MAX_COUNT,COMPRESSION_INGOT_DENOMINATOR,COMPRESSION_VOLUME_TARGET_LOG,ORE_VOLUME,BOMB_RARITY_CHANCE,BOMB_DANGER_MULTIPLIER,INSTANCE_BONUS_PER_PLAYER,INSTANCE_BONUS_MAX_MULTIPLIER,BOOST_MULTIPLIER,THEORETICAL_TERMINAL_SALES_RATE,EARLY_ORE_VALUE,EARLY_ORE_HP,NORMAL,INGOT,CORE_NAMES,CORE_FEED,SLOWDOWN,ASCENSION_INGOT_REQ,DEFAULT_INGOT_LEVELS,DEFAULT_CORE,A18_VIDEO_CORE,A18_VIDEO_INGOT,DEFAULT_MEASUREMENTS,
     totalCoreForAscension,slowdownLevel,nextAscensionRequirement,coreCost,maxCoreLevel,coreEffect,coreBundleCost,coreReallocationPlan,ascensionInteractionPlan,slowdownReallocationPlan,ingotEffect,ingotNextCost,ingotCumulativeCost,ingotBundleCost,inferTotalIngotsEarned,prestigeTotalIngotsEarnedFromMultiplier,legacyStartIngot,afterAscensionState,compressionUnlocked,compressionE,compressionRarityState,compressionRarityValueMultiplier,compressionExpectedIngotPerOre,compressionDirectIngotPlan,compressionLevelPushPlan,compressionVolumeLog,observableUniverseBestLevel,prestigeGateBaselineSeconds,compressionAscensionEstimate,compressionCycleEstimate,optimizeCompressionPreparation,optimizeLegacyPartitions,optimizeCompressionSwitchPlan,normalEffect,requiredExpLog10,requiredExp,baseOreValueLog10,baseOreValue,baseOreHpLog10,baseOreHp,expectedTerminalPerTop,prestigeBase,prestigeGain,prestigePermanent,
-    instanceBonusMultiplier,normalNextCostLog10,rarityState,topSpawnRate,expectedUsefulExpPerTerminal,directExpPaceAtLevel,calculateExpPaceBoundary,expectedRarityValueMultiplier,rankingIncomeLog10,normalBundleCostLog10,dpsLog10,softCapHpLog,targetOreStats,requiredPreparedDpsLog10,calculateRankingTarget,simulateCurve,deriveDpsCalibration,fitCalibration,exactTimingMeasurements,timingResolver,mergePrestigeSchedule,prestigeScheduleFunding,planNormalAutoBootstrap,optimizeNormalAutoBootstrap,paretoCoreCandidates,slowdownCandidates,optimizeFixedCore,evaluateAutoPrestigeSetting,evaluateAutoPrestigeScheduleSetting,fixedCoreIngotSearchLevels,fixedCoreIngotBandEtaLowerBound,manualCoreEtaLowerBound,optimizeAscension,optimizeSingularity,optimizeIngotUpgrades,completeAscensionState,ascensionSearchMaxLevel,optimizeTargetLevel,optimizeRanking,optimizeRankingIngotUpgrades,CORE_STRATEGY_PROFILES,coreStrategyWorkload,assessCoreStrategyPair,formatNumber,formatSlowdownMultiplier,formatLog10,parseNumber,quickStartAdvice
+    instanceBonusMultiplier,normalNextCostLog10,rarityState,topSpawnRate,maxSupplyCappedSlowdown,minimumCoreFeedLevelForSlowdown,compressionFarmPriorityCore,compressionFarmCoreTable,expectedUsefulExpPerTerminal,directExpPaceAtLevel,calculateExpPaceBoundary,expectedRarityValueMultiplier,rankingIncomeLog10,normalBundleCostLog10,dpsLog10,softCapHpLog,targetOreStats,requiredPreparedDpsLog10,calculateRankingTarget,simulateCurve,deriveDpsCalibration,fitCalibration,exactTimingMeasurements,timingResolver,mergePrestigeSchedule,prestigeScheduleFunding,planNormalAutoBootstrap,optimizeNormalAutoBootstrap,paretoCoreCandidates,slowdownCandidates,optimizeFixedCore,evaluateAutoPrestigeSetting,evaluateAutoPrestigeScheduleSetting,fixedCoreIngotSearchLevels,fixedCoreIngotBandEtaLowerBound,manualCoreEtaLowerBound,optimizeAscension,optimizeSingularity,optimizeIngotUpgrades,completeAscensionState,ascensionSearchMaxLevel,optimizeTargetLevel,optimizeRanking,optimizeRankingIngotUpgrades,CORE_STRATEGY_PROFILES,coreStrategyWorkload,assessCoreStrategyPair,formatNumber,formatSlowdownMultiplier,formatLog10,parseNumber,quickStartAdvice
   };
 });
