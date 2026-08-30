@@ -40,10 +40,17 @@ function roadmapFinalInput(input,roadmap){
 
 async function parallelAscension(msg){
   const rawInput={...(msg.input||{})},input={...rawInput,nextRequirement:Number.isFinite(Number(rawInput.nextRequirement))?Number(rawInput.nextRequirement):model.nextAscensionRequirement(rawInput.ascensionCount)},measurements=msg.measurements||[],id=msg.id,totalCore=Math.max(0,Number(input.totalCore)||model.totalCoreForAscension(input.ascensionCount));
-  // Fixed-Core is latency critical and the branch-and-bound model now proves away
-  // slower Core-Ingot bands. Running it in this already-loaded worker avoids child
-  // startup overhead and returns the complete fixed recommendation immediately.
-  const fixedOnly=model.optimizeAscension({...input,skipManual:true,disableParallel:true},measurements),fixedRow={kind:'fixed',result:fixedOnly},fixedPending={...fixedOnly,manualPending:true,manualPrunedByLowerBound:false,manualLowerBound:null};
+  // Fixed-Core is latency critical. The default exact search has at most three
+  // independent Core-Ingot bands, so evaluate those bands concurrently when there
+  // is more than one. This preserves the same candidate set as optimizeAscension;
+  // it changes wall-clock latency only, not the winner or pruning semantics.
+  const fixedLevels=model.fixedCoreIngotSearchLevels(input,totalCore);let fixedOnly,fixedRows=[];
+  if(fixedLevels.length>1&&fixedLevels.length<=4&&!input.exhaustiveCoreIngotSearch&&!input.fixedCoreCandidates&&!input.fixedCoreCandidate){
+    fixedRows=await Promise.all(fixedLevels.map(level=>childTask('fixed',{...input,skipManual:true,fixedCoreIngotLevels:[level],disableCoreIngotBandPruning:true,disableParallel:true},measurements,id,{level})));
+    fixedOnly=mergeAscensionShards(fixedRows).result;
+    for(const row of fixedRows)row.worker.terminate();
+  }else fixedOnly=model.optimizeAscension({...input,skipManual:true,disableParallel:true},measurements);
+  const fixedRow={kind:'fixed',result:fixedOnly},fixedPending={...fixedOnly,manualPending:true,manualPrunedByLowerBound:false,manualLowerBound:null};
   // The complete fixed-Core result is useful immediately. Do not make the user wait
   // for the independent manual-Core lower-bound proof before painting it; that proof
   // can update the strategy verdict in a later message.

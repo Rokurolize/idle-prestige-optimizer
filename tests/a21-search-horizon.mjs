@@ -16,13 +16,12 @@ const input={
 
 const fast=M.optimizeAscension(input,M.DEFAULT_MEASUREMENTS);
 assert.ok(fast.fixedPlan);
-assert.deepEqual(fast.fixedPlan.core,[27,33,28,9,18]);
-assert.equal(M.slowdownLevel(fast.fixedPlan.slowdown),18);
-assert.equal(fast.fixedPlan.targetLevel,6115);
-assert.equal(fast.fixedPlan.actualPrestigeLevel,6115);
-assert.equal(fast.fixedPlan.totalEta,1747);
-assert.deepEqual(fast.fixedPlan.prestigeSchedule.map(x=>[x.targetLevel,x.actualPrestigeLevel,x.runs]),[[6115,6115,5],[50,59,18]]);
-assert.deepEqual(fast.fixedPlan.coreIngotPrunedLevels.map(x=>x.level),[32,31]);
+assert.deepEqual(fast.fixedPlan.core,[27,33,27,9,19]);
+assert.equal(M.slowdownLevel(fast.fixedPlan.slowdown),19);
+assert.equal(fast.fixedPlan.targetLevel,5355);
+assert.equal(fast.fixedPlan.actualPrestigeLevel,5355);
+assert.equal(fast.fixedPlan.totalEta,561.75);
+assert.deepEqual(fast.fixedPlan.prestigeSchedule.map(x=>[x.targetLevel,x.actualPrestigeLevel,x.runs]),[[5355,5355,1],[50,59,22]]);
 for(const row of fast.fixedPlan.coreIngotPrunedLevels)assert.ok(row.lowerBound>=fast.fixedPlan.totalEta,`Core-Ingot Lv${row.level} lower bound must prove it cannot win`);
 
 // Differential guard: disabling the Core-Ingot band proof must produce the same

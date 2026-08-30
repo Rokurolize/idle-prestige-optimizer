@@ -25,7 +25,7 @@ const after=M.afterAscensionState({ascensionCount:4,discardedAscensions:28,heldI
 assert.equal(after.ascensionCount,5);
 assert.equal(after.heldIngots,43904,'normal Ascension must re-grant Legacy start Ingots from cumulative discarded Ascensions');
 assert.equal(after.prestigeCount,0);
-assert.equal(after.normalAutoUnlocked,false);
+assert.equal(after.normalAutoUnlocked,true,'optimizer sync keeps normal Upgrade Auto unlocked after Ascension');
 assert.deepEqual(after.ingotLevels,Array(8).fill(0));
 assert.equal(after.maxLevelEver,405,'best Level survives Ascension');
 
