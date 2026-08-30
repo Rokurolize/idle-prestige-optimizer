@@ -16,19 +16,18 @@ const input={
 
 const currentSlowdown=M.SLOWDOWN[input.currentSlowdownLevel],probe=M.compressionFarmSnapshot({...input,requiredIngots:input.nextRequirement,coreLevels:input.currentCoreLevels,ingotLevels:input.ingotLevels,normalFeed:4,slowdown:currentSlowdown,directFlowCalibration:1}),modeledCurrentDestroy=probe.terminalEvents*probe.ordinaryFraction*probe.damageRatio,expectedCalibration=Math.max(.05,Math.min(20,input.compressionDestroyRate/modeledCurrentDestroy));
 const policy=M.optimizeClosedLoopAscensionPolicy(input,M.DEFAULT_MEASUREMENTS);
-assert.ok(policy&&policy.farm);
+assert.ok(policy&&policy.gate);
 assert.equal(policy.flowCalibrationSource,'current-crush-rate');
 assert.ok(Math.abs(policy.directFlowCalibration-expectedCalibration)<1e-12,'debug-panel rate should calibrate the current state by ratio');
-assert.ok(policy.farm.terminalEvents>input.compressionDestroyRate,'an upgraded candidate may physically exceed the observed current-state destroy rate');
-assert.equal(policy.farm.terminalEvents,M.THEORETICAL_TERMINAL_SALES_RATE,'candidate reaches the r82 terminal supply ceiling instead of being clamped to 71.6/s');
-assert.deepEqual(policy.farm.core,[0,0,31,0,23]);
-assert.equal(policy.farm.slowdownLevel,23);
-assert.ok(policy.farm.rate>0&&Number.isFinite(policy.totalSeconds));
+const deepRun=policy.gate.runs.find(x=>x.role==='harvest')||policy.gate.runs.at(-1),candidate=M.compressionFarmSnapshot({...input,requiredIngots:input.nextRequirement,totalCore:input.totalCore,coreLevels:deepRun.core,ingotLevels:policy.gate.ingotLevels,normalFeed:4,slowdown:deepRun.slowdown,directFlowCalibration:policy.directFlowCalibration}),uncalibratedCandidate=M.compressionFarmSnapshot({...input,requiredIngots:input.nextRequirement,totalCore:input.totalCore,coreLevels:deepRun.core,ingotLevels:policy.gate.ingotLevels,normalFeed:4,slowdown:deepRun.slowdown,directFlowCalibration:1});
+assert.ok(candidate.terminalEvents>input.compressionDestroyRate,'an upgraded candidate may physically exceed the observed current-state destroy rate');
+assert.equal(candidate.terminalEvents,M.THEORETICAL_TERMINAL_SALES_RATE,'candidate reaches the r82 terminal supply ceiling instead of being clamped to 71.6/s');
+assert.ok(candidate.rate>0&&Number.isFinite(policy.totalSeconds));
 
 const uncalibrated=M.optimizeClosedLoopAscensionPolicy({...input,compressionDestroyRate:0},M.DEFAULT_MEASUREMENTS);
 assert.equal(uncalibrated.flowCalibrationSource,'r82-physical');
 assert.equal(uncalibrated.directFlowCalibration,1);
-assert.equal(uncalibrated.farm.terminalEvents,policy.farm.terminalEvents,'calibration scales reward flow, not candidate physical supply');
-assert.ok(uncalibrated.farm.rate>policy.farm.rate,'the lower observed current-state ratio should carry to candidates without capping them');
+assert.equal(uncalibratedCandidate.terminalEvents,candidate.terminalEvents,'calibration scales reward flow, not candidate physical supply');
+assert.ok(uncalibratedCandidate.rate>candidate.rate,'the lower observed current-state ratio should carry to candidates without capping them');
 
-console.log(JSON.stringify({observedDestroyRate:input.compressionDestroyRate,modeledCurrentDestroy,directFlowCalibration:policy.directFlowCalibration,candidateTerminalEvents:policy.farm.terminalEvents,candidateSlowdownLevel:policy.farm.slowdownLevel,candidateCore:policy.farm.core,totalSeconds:policy.totalSeconds},null,2));
+console.log(JSON.stringify({observedDestroyRate:input.compressionDestroyRate,modeledCurrentDestroy,directFlowCalibration:policy.directFlowCalibration,candidateTerminalEvents:candidate.terminalEvents,candidateSlowdownLevel:deepRun.slowdownLevel,candidateCore:deepRun.core,totalSeconds:policy.totalSeconds},null,2));

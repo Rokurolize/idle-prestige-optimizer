@@ -13,7 +13,7 @@ localStorage.setItem('crush-goal-optimizer-v2',JSON.stringify({goal:'ascension',
 window.__workerPosts=0;
 window.Worker=class{constructor(){this.onmessage=null;this.onerror=null}postMessage(){window.__workerPosts++}terminate(){}};
 </script>'''
-s=s.replace('<script src="ascension-model.js?v=r82-runtime-20260830b"></script>',seed+'<script src="ascension-model.js?v=r82-runtime-20260830b"></script>',1)
+s=s.replace('<script src="ascension-model.js?v=r82-runtime-20260831a"></script>',seed+'<script src="ascension-model.js?v=r82-runtime-20260831a"></script>',1)
 probe=r'''<script>
 setTimeout(()=>{
  const warningBefore=document.getElementById('stateConsistency').textContent;

@@ -41,6 +41,16 @@ assert.equal(reduced.autoMask,brute.autoMask);
 const forcedTruncation=M.simulateCompressionAutoHarvest({...bruteFixture,autoMask:132,maxPurchases:0});
 assert.equal(forcedTruncation.truncated,true,'an explicit artificial cap must be surfaced, never silently accepted');
 
+// Human-friendly r82 gate: never make the user click +100 hundreds of times to
+// move Auto Prestige away from Lv50. One manual deep Prestige overlaps the ▲ gate,
+// then the same Lv50 setting counts the remaining Prestiges unattended.
+const currentA51={ascensionCount:51,discardedAscensions:52,maxLevelEver:9485,compressionLockedLevel:9485,compressionEnabled:true,totalCore:M.totalCoreForAscension(51),heldIngots:8.53e33,totalIngotsEarned:M.prestigeTotalIngotsEarnedFromMultiplier(44.38e12),prestigeCount:4,currentCoreLevels:[78,79,79,9,47],currentSlowdownLevel:46,ingotLevels:Array(8).fill(0),nextRequirement:2e35,normalAutoUpdatesPerSecond:36.5,dpsCalibration:1,hpCalibration:1,manualClickRate:4,uiClickRate:4};
+const practical=M.optimizeClosedLoopAscensionPolicy({...currentA51,strategyStyle:'normal'},M.DEFAULT_MEASUREMENTS),focused=M.optimizeClosedLoopAscensionPolicy({...currentA51,strategyStyle:'focused'},M.DEFAULT_MEASUREMENTS);
+assert.equal(practical.humanWorkload.apTargetLevel,50);assert.equal(practical.humanWorkload.apTargetChangeClicks,0);assert.equal(practical.humanWorkload.autoToggleCount,2);assert.equal(practical.humanWorkload.manualPrestigeCount,1);assert.equal(practical.gate.countRunsAfterDeep,20);assert.ok(practical.gate.deepActualLevel>1000&&practical.gate.deepActualLevel<1200);assert.ok(practical.totalSeconds<330);
+assert.equal(focused.humanWorkload.apTargetLevel,50);assert.equal(focused.humanWorkload.apTargetChangeClicks,0);assert.equal(focused.humanWorkload.manualRareClickRate,4);assert.ok(focused.humanWorkload.manualRareClicks>0&&focused.humanWorkload.manualRareClicks<300);assert.ok(focused.totalSeconds<=practical.totalSeconds);
+const freshA53=M.optimizeClosedLoopAscensionPolicy({...currentA51,ascensionCount:53,totalCore:M.totalCoreForAscension(53),heldIngots:M.legacyStartIngot(52),totalIngotsEarned:0,prestigeCount:0,currentCoreLevels:null,currentSlowdownLevel:0,nextRequirement:M.nextAscensionRequirement(53),strategyStyle:'normal'},M.DEFAULT_MEASUREMENTS);
+assert.equal(freshA53.gate.countRunsBeforeDeep,1);assert.equal(freshA53.gate.countRunsAfterDeep,23);assert.equal(freshA53.humanWorkload.apTargetChangeClicks,0);assert.ok(freshA53.totalSeconds>=370&&freshA53.totalSeconds<380);
+
 // Current A500 tail: any Legacy resets A to 0. Even granting zero best-Level-push
 // time and zero direct-Ingot wait, the mandatory 25-Prestige floor is slower than
 // this feasible straight route, so every Legacy/push branch can be safely rejected.
