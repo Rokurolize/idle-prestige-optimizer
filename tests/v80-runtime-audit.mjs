@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
 import M from '../ascension-model.js';
 
-// r80 instantiated GameBalanceConfig values from the scene, not Udon constructor defaults.
+// r82 instantiated GameBalanceConfig values from the scene, not Udon constructor defaults.
 assert.equal(M.BASE_SPAWN_INTERVAL,1.6666666);
 assert.equal(M.MIN_SPAWN_RATE,.01);
 assert.equal(M.MIN_SPAWN_INTERVAL,.05);
 assert.equal(M.MAX_TOP_SPAWN_RATE,20);
 assert.equal(M.NORMAL_AUTO_UNLOCK_COST,300);
 assert.equal(M.BOOST_MULTIPLIER,2);
-assert.equal(M.BOMB_RARITY_CHANCE,.0015);
+assert.equal(M.BOMB_RARITY_CHANCE,.002);
 assert.equal(M.BOMB_DANGER_MULTIPLIER,2);
 assert.equal(M.INSTANCE_BONUS_PER_PLAYER,.03);
 assert.equal(M.INSTANCE_BONUS_MAX_MULTIPLIER,1.5);
@@ -31,17 +31,17 @@ assert.equal(M.instanceBonusMultiplier(100),1.5);
 
 // Bomb is rolled before Gem/Rare/Ori and removes that spawn from the ordinary-sale pool.
 const rarity=M.rarityState([0,0,0,200,0,0,0,0],[0,0,0,0,10,0,0,50],{bombUnlocked:true,dangerEnabled:false});
-assert.ok(Math.abs(rarity.pBomb-.0015)<1e-15);
-assert.ok(Math.abs(rarity.pSale-.9985)<1e-15);
-assert.ok(Math.abs(rarity.pGem-.009985)<1e-12);
-assert.ok(Math.abs(rarity.pRare-.4942575)<1e-12);
-assert.ok(Math.abs(rarity.pOri-.4942575)<1e-12);
+assert.ok(Math.abs(rarity.pBomb-.002)<1e-15);
+assert.ok(Math.abs(rarity.pSale-.998)<1e-15);
+assert.ok(Math.abs(rarity.pGem-.00998)<1e-12);
+assert.ok(Math.abs(rarity.pRare-.49401)<1e-12);
+assert.ok(Math.abs(rarity.pOri-.49401)<1e-12);
 assert.ok(Math.abs(rarity.pBomb+rarity.pNormal+rarity.pRare+rarity.pGem+rarity.pOri-1)<1e-12);
-assert.equal(M.rarityState(Array(8).fill(0),Array(8).fill(0),{bombUnlocked:true,dangerEnabled:true}).pBomb,.003);
+assert.equal(M.rarityState(Array(8).fill(0),Array(8).fill(0),{bombUnlocked:true,dangerEnabled:true}).pBomb,.004);
 
 const baseStats=M.targetOreStats({level:100,normalLevels:Array(8).fill(0),coreLevels:[0,0,0,0,0],ingotLevels:Array(8).fill(0),slowdown:1,physicalCap:15.75,instancePlayerCount:1});
 const bombStats=M.targetOreStats({level:100,normalLevels:Array(8).fill(0),coreLevels:[0,0,0,0,0],ingotLevels:Array(8).fill(0),slowdown:1,physicalCap:15.75,instancePlayerCount:1,bombUnlocked:true});
-assert.ok(Math.abs(bombStats.terminalSupply/baseStats.terminalSupply-.9985)<1e-12);
+assert.ok(Math.abs(bombStats.terminalSupply/baseStats.terminalSupply-.998)<1e-12);
 const incomeBoostStats=M.targetOreStats({level:100,normalLevels:Array(8).fill(0),coreLevels:[0,0,0,0,0],ingotLevels:Array(8).fill(0),slowdown:1,physicalCap:15.75,instancePlayerCount:1,incomeBoostActive:true});
 assert.ok(Math.abs((incomeBoostStats.expectedIncomePerTerminalLog-baseStats.expectedIncomePerTerminalLog)-Math.log10(2))<1e-12);
 const twoPlayerStats=M.targetOreStats({level:100,normalLevels:Array(8).fill(0),coreLevels:[0,0,0,0,0],ingotLevels:Array(8).fill(0),slowdown:1,physicalCap:15.75,instancePlayerCount:2});
@@ -95,4 +95,4 @@ const cal=M.fitCalibration(M.DEFAULT_MEASUREMENTS,36.5);
 const oldRecommendation=M.simulateCurve({maxTarget:4434,core:[15,25,22,9,12],ingot:userIngot,slowdown:1e6,physicalCap:cal.physicalCap,totalIngotsEarned:prestigeTotal,dpsCalibration:1,hpCalibration:1,compressionEnabled:true,compressionE,compressionRequiredIngots:M.nextAscensionRequirement(16),normalAutoEnabled:true,normalAutoUpdatesPerSecond:36.5,normalAutoCalibration:cal,instancePlayerCount:1,bombUnlocked:true});
 assert.ok(oldRecommendation.minOneShot[4433]<1e-10,`old Lv4433 should be rejected, got one-shot ${oldRecommendation.minOneShot[4433]}`);
 
-console.log('r80 runtime audit regression: PASS');
+console.log('r82 runtime audit regression: PASS');

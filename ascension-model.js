@@ -5,10 +5,10 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   'use strict';
 
-  const MODEL_REVISION='r80-runtime-20260830a';
+  const MODEL_REVISION='r82-runtime-20260830b';
 
-  // CRUSH FACTORY IDLE v1.0.4 / VRCW asset r80, SHA-256
-  // 73bf14ed97d6ef06875e78ef6cd4bf3cb95641ee10464007a3f28ac23f25452d.
+  // CRUSH FACTORY IDLE / VRCW asset r82, SHA-256
+  // e5c63a446e6453efaf0cc26c432488c029cdf9fc5b8d34b1576c62491f4fec04.
   // The instantiated GameBalanceConfig UdonBehaviour public variables are authoritative:
   // the Udon program heap contains different constructor defaults that are overridden by
   // the scene. Never substitute those defaults for the serialized scene values.
@@ -18,30 +18,45 @@
   const TERMINAL_ORES_PER_TOP=4.78640776699;
   const MAX_TOP_SPAWN_RATE=1/MIN_SPAWN_INTERVAL;
   const AUTO_PRESTIGE_INTERVAL=1;
+  // Serialized scene override: the program heap says 0.5s, but the instantiated
+  // GameBalanceConfig used by the live world overrides this to 0.01s. Because Tick
+  // resets the timer, live throughput is frame-limited; 36.5/s is the existing
+  // measured default and 100/s is the timer ceiling.
+  const AUTO_BUY_INTERVAL=.01;
   const DEFAULT_NORMAL_AUTO_UPDATES_PER_SECOND=36.5;
   const NORMAL_AUTO_UNLOCK_COST=300;
   const OUTER_DAMAGE_FACTOR=.55;
+  const REDUCER_DAMAGE_EXPONENT=2.26;
+  const GRAVITY_HIT_EXPONENT=.7;
   const ORE_MAX_CRUSH_SECONDS=30;
   const MAX_ZONE_ORES=120;
   const ORE_TIER_HP_MULTIPLIER=1.7;
   const ORICHALCUM_HP_MULTIPLIER=5;
-  // CRUSH FACTORY IDLE r80 Singularity / Legacy constants reconstructed from the VRCW.
+  // CRUSH FACTORY IDLE r82 Singularity / Legacy constants reconstructed from the VRCW.
   const LEGACY_REQUIRED_ASCENSIONS=10;
   const COMPRESSION_UNLOCK_DISCARDED=50;
   const LEGACY_START_INGOT_CAP=50000000;
   const ASCENSION_MAX_COUNT=500;
-  const COMPRESSION_INGOT_DENOMINATOR=11113200;
+  // r82 compressionIngotTargetHours=1 (r78/r80 used 20), so the direct▲
+  // denominator is exactly 1/20 of the former 11,113,200 value.
+  const COMPRESSION_INGOT_DENOMINATOR=555660;
+  // The A29 harvest anchor (2026-08-30 ~05:02 JST) predates the r82 evidence used by
+  // this model. Its old 11.27 payout multiplier compensated the former 20-hour direct▲
+  // denominator and MUST NOT be carried into r82, whose reward is already 20x larger.
+  // r82 defaults to the physical Crusher/supply model (factor 1). If the user enters
+  // the debug-panel crush rate, the current physical state is calibrated to that rate
+  // and the resulting ratio—not the raw observation—is applied to upgraded candidates.
+  const R82_DEFAULT_DIRECT_FLOW_CALIBRATION=1;
+  const PRE_R82_A29_DIRECT_FLOW_CALIBRATION=11.273903604026662;
   const COMPRESSION_VOLUME_TARGET_LOG=80.552;
   const ORE_VOLUME=0.0137;
-  const BOMB_RARITY_CHANCE=.0015;
+  const BOMB_RARITY_CHANCE=.002;
   const BOMB_DANGER_MULTIPLIER=2;
   const INSTANCE_BONUS_PER_PLAYER=.03;
   const INSTANCE_BONUS_MAX_MULTIPLIER=1.5;
   const BOOST_MULTIPLIER=2;
   const THEORETICAL_TERMINAL_SALES_RATE=MAX_TOP_SPAWN_RATE*TERMINAL_ORES_PER_TOP;
-  // 25-count-only Prestige baseline from the existing calibrated pre-Compression
-  // model with the Ingot requirement already satisfied. A13+ settles at 13s/run
-  // in the current calibration, i.e. 325s for the fixed 25-Prestige gate.
+  // 25-count-only Prestige baseline from the calibrated serialized-scene model.
   const PRESTIGE_GATE_25_BASELINE=[35475,27125,24700,6775,5925,2950,2675,2700,450,450,350,325,400];
   const EARLY_ORE_VALUE=[.34362900744795793,.7815852169404028,1.3105059329561746,1.8874439058471755,2.6336507240647125,4.334184788359374,6.739939118696889,8.64958853566101,12.614196244526408,17.902398308642,22.353805455655674,29.87797330570841,36.47543009067704,44.98144004030895,54.27695961817204,71.38908553339408,83.15713010178953,98.80675152551989,121.69951279637111,155.74190634993846,179.04792344125858,226.8861523027345,274.21650214110684,338.40610263604486,391.76187426309815,478.9543738264224,544.5730505335307,647.0168185774196,836.2705248334939,1128.965208525217];
   const EARLY_ORE_HP=[3.1817500689625735,6.700833478569984,10.403218616288283,13.873276162764121,17.9241842965422,27.312716109228543,39.32689740411166,46.73103549562652,63.102386425178636,82.92274317661239,95.87164000899627,118.64954280154458,134.11939945868374,153.14427918138173,171.10361290397313,208.37793555095277,224.74790357817605,247.26293639376246,281.99245297401126,334.1414682506974,355.68899086797006,417.335538934803,467.0326151928781,533.664181259924,572.0424810465383,647.5547612500976,681.733675505318,749.9812678778437,897.5484077181289,1121.9355096476613];
@@ -62,18 +77,22 @@
   const INGOT={
     names:['精錬収益','経験値効率','破砕力増強','供給増強','ジェム確率','レア鉱石価値','ストール復帰','オリハルコン率'],
     baseCost:[1,1,1,1,10,50,1,50],
+    costRate:[2,2,2,2,2,2,2,2],
     per:[.1,.1,.1,.1,.1,.1,.06,1],
     quad:[4.6,.6,4.6,.05596620908130939,0,0,0,0],
     optimizerCap:[1023,1023,1023,1023,10,1023,17,100]
   };
   const CORE_NAMES=['収入倍率','インゴット倍率','破壊力倍率','コスト減','供給加速'];
-  const CORE_FEED_NEXT_COST=[2,8,16,64,128,1080,2160,8000,20000,40000,200000,500000,1000000,5000000,8000000,60000000,100000000,200000000,1000000000,1500000000,10000000000,25000000000,50000000000,250000000000,300000000000,3000000000000,5000000000000,30000000000000,60000000000000,120000000000000,600000000000000,1000000000000000,6000000000000000,10000000000000000,20000000000000000,150000000000000000,300000000000000000,1500000000000000000,2500000000000000000,15000000000000000000,30000000000000000000,60000000000000000000,300000000000000000000,500000000000000000000,4000000000000000000000,6000000000000000000000];
+  const CORE_FEED_NEXT_COST=[2,8,16,64,128,1080,2160,8000,20000,40000,200000,500000,1000000,5000000,8000000,60000000,100000000,200000000,1000000000,1500000000,10000000000,25000000000,50000000000,250000000000,300000000000,3000000000000,5000000000000,30000000000000,60000000000000,120000000000000,600000000000000,1000000000000000,6000000000000000,10000000000000000,20000000000000000,150000000000000000,300000000000000000,1500000000000000000,2500000000000000000,15000000000000000000,30000000000000000000,60000000000000000000,300000000000000000000,500000000000000000000,4000000000000000000000,6000000000000000000000,20000000000000000000000,50000000000000000000000,150000000000000000000000,400000000000000000000000,1000000000000000000000000,3000000000000000000000000,8000000000000000000000000,20000000000000000000000000,60000000000000000000000000,150000000000000000000000000];
   const CORE_FEED_CUM=[0];
   for(const c of CORE_FEED_NEXT_COST)CORE_FEED_CUM.push(CORE_FEED_CUM[CORE_FEED_CUM.length-1]+c);
   const SPECIAL_PREFIX=[1,2,4,6,10,100,1000,2000,10000];
+  // r82 has two distinct tables. The Slowdown perk remains 46 purchasable levels
+  // through ×1e42, while Infinity/Core Feed gained ten extra levels through ×1e52.
   const SLOWDOWN=[...SPECIAL_PREFIX];
   for(let p=5;p<=42;p++)SLOWDOWN.push(Math.pow(10,p));
-  const CORE_FEED=SLOWDOWN.slice();
+  const CORE_FEED=[...SPECIAL_PREFIX];
+  for(let p=5;p<=52;p++)CORE_FEED.push(Math.pow(10,p));
   const ASCENSION_INGOT_REQ=[250,50000,500000,5000000,50000000,250000000,2500000000,10000000000,50000000000,350000000000,800000000000,6000000000000,20000000000000,80000000000000,400000000000000,2e15,5e15,7e15,3e16,9e16,5e17,2e18,5e18,2e19,7e19,3e20,9e20,4e21,2e22,5e22,3e23,8e23,3e24,9e24,4e25,2e26,5e26,2e27,7e27,3e28,8e28,3e29,9e30,4e30,2e31,5e31,2e32,7e32,3e33,8e33,3e34,2e35,4e35,2e36,5e36,2e37,7e37,3e38,9e38,4e39,2e40,4e40,2e41,6e41,2e42,7e42,3e43,9e43,3e44,2e45,4e45,2e46,5e46,2e47,7e47,3e48,9e48,3e49,2e50,4e50,2e51,6e51,2e52,7e52,3e53,9e53,4e54,2e55,6e55,2e56,6e56,2e57,7e57,3e58,9e58,4e59,2e60,4e60,2e61,9.9e63];
 
   const DEFAULT_INGOT_LEVELS=[24,29,24,29,10,23,17,23];
@@ -86,9 +105,6 @@
     {targetLevel:695,seconds:51.21,slowdown:2000,core:DEFAULT_CORE.slice(),ingot:DEFAULT_INGOT_LEVELS.slice(),totalIngotsEarned:2e9,label:'A7 ×2K Lv695'},
     {targetLevel:995,seconds:73,slowdown:2000,core:DEFAULT_CORE.slice(),ingot:DEFAULT_INGOT_LEVELS.slice(),totalIngotsEarned:2e9,label:'A7 ×2K Lv995'},
     {targetLevel:460,seconds:59.4,slowdown:10000,core:DEFAULT_CORE.slice(),ingot:DEFAULT_INGOT_LEVELS.slice(),totalIngotsEarned:2e9,label:'A7 ×10K Lv460'},
-    // 30 fps video 2026-08-26 10-03-34.mp4. Complete reset-to-reset run:
-    // reset at 89.5 s, Lv4421 at 316.5 s => 227.0 s. Intermediate
-    // milestones pin the shape rather than only applying a single end-point fudge.
     {targetLevel:1000,seconds:52,slowdown:1e12,core:A18_VIDEO_CORE.slice(),ingot:A18_VIDEO_INGOT.slice(),totalIngotsEarned:A18_VIDEO_TOTAL_INGOTS,label:'A18 video ×1T Lv1000'},
     {targetLevel:2000,seconds:101,slowdown:1e12,core:A18_VIDEO_CORE.slice(),ingot:A18_VIDEO_INGOT.slice(),totalIngotsEarned:A18_VIDEO_TOTAL_INGOTS,label:'A18 video ×1T Lv2000'},
     {targetLevel:2365,seconds:119,slowdown:1e12,core:A18_VIDEO_CORE.slice(),ingot:A18_VIDEO_INGOT.slice(),totalIngotsEarned:A18_VIDEO_TOTAL_INGOTS,label:'A18 video ×1T Lv2365'},
@@ -193,15 +209,22 @@
   }
   function afterAscensionState(state){
     const s=state||{},a=Math.max(0,Math.floor(finite(s.ascensionCount))),next=Math.min(ASCENSION_MAX_COUNT,a+1),discarded=Math.max(0,Math.floor(finite(s.discardedAscensions)));
-    const start=legacyStartIngot(discarded);return {...s,ascensionCount:next,heldIngots:start,totalIngotsEarned:0,prestigeMultiplier:1,prestigeCount:0,normalAutoUnlocked:false,ingotLevels:Array(8).fill(0)};
+    const start=legacyStartIngot(discarded);return {...s,ascensionCount:next,heldIngots:start,totalIngotsEarned:0,prestigeMultiplier:1,prestigeCount:0,normalAutoUnlocked:true,ingotLevels:Array(8).fill(0)};
+  }
+  function afterLegacyState(state){
+    const s=state||{},a=Math.max(0,Math.floor(finite(s.ascensionCount))),before=Math.max(0,Math.floor(finite(s.discardedAscensions))),discarded=before+a,best=Math.max(0,Math.floor(finite(s.maxLevelEver)));
+    return {...s,ascensionCount:0,discardedAscensions:discarded,compressionLockedLevel:best,heldIngots:legacyStartIngot(discarded),totalIngotsEarned:0,prestigeMultiplier:1,prestigeCount:0,normalAutoUnlocked:true,ingotLevels:Array(8).fill(0),currentCoreLevels:[0,0,0,0,0],currentSlowdownLevel:0};
   }
   function compressionUnlocked(discardedAscensions){return Math.max(0,Math.floor(finite(discardedAscensions)))>=COMPRESSION_UNLOCK_DISCARDED}
-  function compressionE(bestLevel,discardedAscensions){
-    const best=Math.max(0,finite(bestLevel)),discarded=Math.max(0,finite(discardedAscensions));
-    return Math.pow(10,best/7500)/185*Math.sqrt(discarded/50)+best/1500;
+  // r82 preserves r78's Legacy-lock semantics: L is the best Level captured at the
+  // most recent Legacy, not the live historical best reached since that Legacy.
+  function compressionE(lockedLevel,discardedAscensions){
+    const locked=Math.max(0,finite(lockedLevel)),discarded=Math.max(0,finite(discardedAscensions));
+    return Math.pow(10,locked/7500)/185*Math.sqrt(discarded/50)+locked/1805+.04*discarded;
   }
+  function compressionLockedLevel(input){return Math.max(0,finite(input&&input.compressionLockedLevel,input&&input.maxLevelEver))}
   function compressionCurveOptions(input){
-    const enabled=!!(input&&input.compressionEnabled)&&compressionUnlocked(input&&input.discardedAscensions),e=enabled?Math.max(0,finite(input&&input.compressionE,compressionE(input&&input.maxLevelEver,input&&input.discardedAscensions))):0,required=Math.max(0,finite(input&&input.nextRequirement,nextAscensionRequirement(input&&input.ascensionCount)));
+    const enabled=!!(input&&input.compressionEnabled)&&compressionUnlocked(input&&input.discardedAscensions),e=enabled?Math.max(0,finite(input&&input.compressionE,compressionE(compressionLockedLevel(input),input&&input.discardedAscensions))):0,required=Math.max(0,finite(input&&input.nextRequirement,nextAscensionRequirement(input&&input.ascensionCount)));
     const destroyRate=Math.max(0,finite(input&&input.compressionDestroyRate,0));
     return {compressionEnabled:enabled,compressionE:e,compressionRequiredIngots:required,compressionDestroyRate:destroyRate,bombUnlocked:!!(input&&input.bombUnlocked),dangerEnabled:!!(input&&input.dangerEnabled),instancePlayerCount:Math.max(1,Math.floor(finite(input&&input.instancePlayerCount,1))),incomeBoostActive:!!(input&&input.incomeBoostActive),expBoostActive:!!(input&&input.expBoostActive)};
   }
@@ -232,27 +255,30 @@
     return best;
   }
   function compressionLevelPushPlan(opts={}){
-    const discarded=Math.max(COMPRESSION_UNLOCK_DISCARDED,Math.floor(finite(opts.discardedAscensions,COMPRESSION_UNLOCK_DISCARDED))),initialBest=Math.max(0,Math.floor(finite(opts.initialBestLevel))),target=Math.max(1,Math.floor(finite(opts.targetLevel,10000))),terminalRate=Math.max(1e-12,finite(opts.terminalSalesPerSecond,15.75)),rarePercent=clamp(finite(opts.rarePercent,100),0,100),slowdown=Math.max(1,finite(opts.slowdown,SLOWDOWN[SLOWDOWN.length-1])),gemLevel=Math.max(0,Math.min(10,Math.floor(finite(opts.gemLevel,10)))),oriLevel=100,required=Math.max(1,finite(opts.requiredIngots,nextAscensionRequirement(ASCENSION_MAX_COUNT))),start=legacyStartIngot(discarded);
+    const discarded=Math.max(COMPRESSION_UNLOCK_DISCARDED,Math.floor(finite(opts.discardedAscensions,COMPRESSION_UNLOCK_DISCARDED))),ascensionCount=Math.max(0,Math.min(ASCENSION_MAX_COUNT,Math.floor(finite(opts.ascensionCount,ASCENSION_MAX_COUNT)))),initialBest=Math.max(0,Math.floor(finite(opts.initialBestLevel))),lockedLevel=Math.max(0,Math.floor(finite(opts.compressionLockedLevel,initialBest))),target=Math.max(1,Math.floor(finite(opts.targetLevel,10000))),terminalRate=Math.max(1e-12,finite(opts.terminalSalesPerSecond,15.75)),rarePercent=clamp(finite(opts.rarePercent,100),0,100),slowdown=Math.max(1,finite(opts.slowdown,SLOWDOWN[SLOWDOWN.length-1])),gemLevel=Math.max(0,Math.min(10,Math.floor(finite(opts.gemLevel,10)))),oriLevel=100,required=Math.max(1,finite(opts.requiredIngots,nextAscensionRequirement(ascensionCount))),start=Math.max(0,finite(opts.heldIngots,legacyStartIngot(discarded))),totalCore=Math.max(0,finite(opts.totalCore,totalCoreForAscension(ascensionCount)));
     if(target<=1)return {seconds:0,setupSeconds:0,pushSeconds:0,targetLevel:target,expLevel:0,rareValueLevel:0,feedLevel:0,slowdown,terminalSalesPerSecond:terminalRate};
-    const coreFeed=coreEffect(4,maxCoreLevel(4,totalCoreForAscension(ASCENSION_MAX_COUNT))),normalFeed=normalEffect(7,NORMAL.max[7]),terminalPerTop=expectedTerminalPerTop(target),neededTop=terminalRate/Math.max(1e-12,terminalPerTop),neededIngotFeed=neededTop*slowdown*BASE_SPAWN_INTERVAL/Math.max(1e-12,normalFeed*coreFeed);let feedLevel=0;while(feedLevel<INGOT.optimizerCap[3]&&ingotEffect(3,feedLevel)+1e-12<neededIngotFeed)feedLevel++;
+    const coreFeed=coreEffect(4,maxCoreLevel(4,totalCore)),normalFeed=normalEffect(7,NORMAL.max[7]),terminalPerTop=expectedTerminalPerTop(target),neededTop=terminalRate/Math.max(1e-12,terminalPerTop),neededIngotFeed=neededTop*slowdown*BASE_SPAWN_INTERVAL/Math.max(1e-12,normalFeed*coreFeed);let feedLevel=0;while(feedLevel<INGOT.optimizerCap[3]&&ingotEffect(3,feedLevel)+1e-12<neededIngotFeed)feedLevel++;
     const fixedCost=ingotCumulativeCost(3,feedLevel)+ingotCumulativeCost(4,gemLevel)+ingotCumulativeCost(6,INGOT.optimizerCap[6])+ingotCumulativeCost(7,oriLevel),lateIngotRate=terminalRate*compressionExpectedIngotPerOre(required,rarePercent,ingotEffect(4,gemLevel),ingotEffect(7,oriLevel)),rarity=compressionRarityState(rarePercent,ingotEffect(4,gemLevel),ingotEffect(7,oriLevel)),log125=Math.log10(.125);
     const baseDeficit=new Float64Array(target+1);
-    for(let level=1;level<target;level++){const best=Math.max(initialBest,level);baseDeficit[level]=baseOreValueLog10(level)+Math.log10(slowdown)+compressionE(best,discarded)+log125-requiredExpLog10(level)}
+    const activeCompressionE=compressionE(lockedLevel,discarded);
+    for(let level=1;level<target;level++)baseDeficit[level]=baseOreValueLog10(level)+Math.log10(slowdown)+activeCompressionE+log125-requiredExpLog10(level);
     const candidates=[0,200,400,600,700,750,800,825,850,875,890,900,910,920,925,930,935,940,945,950,955,960,970,980,1000,1023].filter(x=>x<=INGOT.optimizerCap[1]);let best=null;
     const work=d=>d>=0?1:(d<-323?0:Math.pow(10,d));
     for(const expLevel of candidates){const expLog=Math.log10(Math.max(1e-300,ingotEffect(1,expLevel)));
       for(const rareValueLevel of candidates){const rv=ingotEffect(5,rareValueLevel),normalLog=expLog,rareLog=expLog+Math.log10(10*rv),gemLog=expLog+Math.log10(20*rv),oriLog=expLog+Math.log10(200*rv),setupCost=fixedCost+ingotCumulativeCost(1,expLevel)+ingotCumulativeCost(5,rareValueLevel),setupSeconds=Math.max(0,setupCost-start)/Math.max(1e-12,lateIngotRate);let pushSeconds=0;
         for(let level=1;level<target;level++){const d=baseDeficit[level],useful=Math.max(1e-12,rarity.pNormal*work(d+normalLog)+rarity.pRare*work(d+rareLog)+rarity.pGem*work(d+gemLog)+rarity.pOri*work(d+oriLog));pushSeconds+=1/(terminalRate*useful)}
-        const row={seconds:setupSeconds+pushSeconds,setupSeconds,pushSeconds,targetLevel:target,initialBestLevel:initialBest,discardedAscensions:discarded,expLevel,rareValueLevel,feedLevel,gemLevel,orichalcumLevel:oriLevel,slowdown,terminalSalesPerSecond:terminalRate,setupCost,expectedDirectIngotPerOre:compressionExpectedIngotPerOre(required,rarePercent,ingotEffect(4,gemLevel),ingotEffect(7,oriLevel))};if(!best||row.seconds<best.seconds)best=row;
+        const row={seconds:setupSeconds+pushSeconds,setupSeconds,pushSeconds,targetLevel:target,ascensionCount,initialBestLevel:initialBest,compressionLockedLevel:lockedLevel,activeCompressionE,discardedAscensions:discarded,totalCore,expLevel,rareValueLevel,feedLevel,gemLevel,orichalcumLevel:oriLevel,slowdown,terminalSalesPerSecond:terminalRate,setupCost,expectedDirectIngotPerOre:compressionExpectedIngotPerOre(required,rarePercent,ingotEffect(4,gemLevel),ingotEffect(7,oriLevel))};if(!best||row.seconds<best.seconds)best=row;
       }
     }
     return best;
   }
-  function compressionVolumeLog(bestLevel,discardedAscensions,totalCrushLog=0){return finite(totalCrushLog)+Math.log10(ORE_VOLUME)+compressionE(bestLevel,discardedAscensions)}
-  function observableUniverseBestLevel(discardedAscensions,totalCrushLog=0){
-    const d=Math.max(0,finite(discardedAscensions)),crush=finite(totalCrushLog);if(compressionVolumeLog(0,d,crush)>=COMPRESSION_VOLUME_TARGET_LOG)return 0;
-    let lo=0,hi=1000;while(hi<1000000&&compressionVolumeLog(hi,d,crush)<COMPRESSION_VOLUME_TARGET_LOG)hi*=2;
-    while(lo+1<hi){const mid=Math.floor((lo+hi)/2);if(compressionVolumeLog(mid,d,crush)>=COMPRESSION_VOLUME_TARGET_LOG)hi=mid;else lo=mid}return hi;
+  // r82 statVolC already stores the log-domain sum of Compression-weighted crushes.
+  // Current Compression E must never be applied retroactively to that history.
+  function compressionVolumeLog(totalVolumeCrushLog){if(totalVolumeCrushLog==null||String(totalVolumeCrushLog).trim()==='')return -Infinity;const stat=Number(totalVolumeCrushLog);return Number.isFinite(stat)?stat+Math.log10(ORE_VOLUME):-Infinity}
+  function observableUniverseReady(totalVolumeCrushLog){return compressionVolumeLog(totalVolumeCrushLog)>=COMPRESSION_VOLUME_TARGET_LOG-1e-12}
+  function observableUniverseCrushPlan(totalVolumeCrushLog,activeCompressionE,crushesPerSecond=THEORETICAL_TERMINAL_SALES_RATE){
+    const current=Number(totalVolumeCrushLog),targetStat=COMPRESSION_VOLUME_TARGET_LOG-Math.log10(ORE_VOLUME),rate=Math.max(1e-12,finite(crushesPerSecond,THEORETICAL_TERMINAL_SALES_RATE)),e=Math.max(0,finite(activeCompressionE));if(Number.isFinite(current)&&current>=targetStat-1e-12)return {ready:true,seconds:0,neededCrushLog:-Infinity,targetStatLog:targetStat,currentStatLog:current,activeCompressionE:e,crushesPerSecond:rate};
+    const neededWeightLog=Number.isFinite(current)?log10Sub(targetStat,current):targetStat,neededCrushLog=neededWeightLog-e,crushes=fromLog10(neededCrushLog),seconds=Number.isFinite(crushes)?crushes/rate:Infinity;return {ready:false,seconds,neededCrushLog,targetStatLog:targetStat,currentStatLog:Number.isFinite(current)?current:null,activeCompressionE:e,crushesPerSecond:rate};
   }
   function prestigeGateBaselineSeconds(ascensionCount,scale=1){
     const a=Math.max(0,Math.floor(finite(ascensionCount))),base=a<PRESTIGE_GATE_25_BASELINE.length?PRESTIGE_GATE_25_BASELINE[a]:325;
@@ -274,8 +300,8 @@
   function compressionRouteEstimate(initialDiscarded,extraLegacyCycles,opts={}){
     let discarded=Math.max(COMPRESSION_UNLOCK_DISCARDED,Math.floor(finite(initialDiscarded,COMPRESSION_UNLOCK_DISCARDED))),prepOverlap=0,prepSequential=0;
     for(const count of extraLegacyCycles||[]){const cycle=compressionCycleEstimate(discarded,count,opts);prepOverlap+=cycle.overlapSeconds;prepSequential+=cycle.sequentialSeconds;discarded+=count}
-    const finalCycle=compressionCycleEstimate(discarded,ASCENSION_MAX_COUNT,opts),afterA500LegacyDiscarded=discarded+ASCENSION_MAX_COUNT,totalCrushLog=finite(opts.totalCrushLog,0),observableBestLevel=observableUniverseBestLevel(afterA500LegacyDiscarded,totalCrushLog),levelTarget=Math.max(10000,observableBestLevel),currentBestLevel=Math.max(0,Math.floor(finite(opts.bestLevel))),levelPush=compressionLevelPushPlan({discardedAscensions:discarded,initialBestLevel:currentBestLevel,targetLevel:levelTarget,terminalSalesPerSecond:opts.terminalSalesPerSecond,rarePercent:opts.rarePercent,gemLevel:opts.gemLevel});
-    return {initialDiscarded:Math.max(COMPRESSION_UNLOCK_DISCARDED,Math.floor(finite(initialDiscarded,COMPRESSION_UNLOCK_DISCARDED))),finalCycleDiscarded:discarded,extraLegacyCycles:(extraLegacyCycles||[]).slice(),prepOverlapSeconds:prepOverlap,prepSequentialSeconds:prepSequential,finalCycleOverlapSeconds:finalCycle.overlapSeconds,finalCycleSequentialSeconds:finalCycle.sequentialSeconds,levelPush,afterA500LegacyDiscarded,observableBestLevel,levelTarget,currentBestLevel,completionOverlapSeconds:prepOverlap+finalCycle.overlapSeconds+levelPush.seconds,completionSequentialSeconds:prepSequential+finalCycle.sequentialSeconds+levelPush.seconds,observableReadyAtCurrentBest:compressionVolumeLog(currentBestLevel,afterA500LegacyDiscarded,totalCrushLog)>=COMPRESSION_VOLUME_TARGET_LOG};
+    const finalCycle=compressionCycleEstimate(discarded,ASCENSION_MAX_COUNT,opts),afterA500LegacyDiscarded=discarded+ASCENSION_MAX_COUNT,currentBestLevel=Math.max(0,Math.floor(finite(opts.bestLevel))),levelTarget=Math.max(10000,currentBestLevel),levelPush=compressionLevelPushPlan({discardedAscensions:discarded,initialBestLevel:currentBestLevel,compressionLockedLevel:finite(opts.compressionLockedLevel,currentBestLevel),targetLevel:levelTarget,terminalSalesPerSecond:opts.terminalSalesPerSecond,rarePercent:opts.rarePercent,gemLevel:opts.gemLevel}),finalLockedLevel=Math.max(currentBestLevel,levelTarget),volumePlan=observableUniverseCrushPlan(opts.totalVolumeCrushLog,compressionE(finalLockedLevel,afterA500LegacyDiscarded),opts.terminalSalesPerSecond);
+    return {initialDiscarded:Math.max(COMPRESSION_UNLOCK_DISCARDED,Math.floor(finite(initialDiscarded,COMPRESSION_UNLOCK_DISCARDED))),finalCycleDiscarded:discarded,extraLegacyCycles:(extraLegacyCycles||[]).slice(),prepOverlapSeconds:prepOverlap,prepSequentialSeconds:prepSequential,finalCycleOverlapSeconds:finalCycle.overlapSeconds,finalCycleSequentialSeconds:finalCycle.sequentialSeconds,levelPush,afterA500LegacyDiscarded,observableBestLevel:null,levelTarget,currentBestLevel,volumePlan,completionOverlapSeconds:prepOverlap+finalCycle.overlapSeconds+levelPush.seconds,completionSequentialSeconds:prepSequential+finalCycle.sequentialSeconds+levelPush.seconds,observableReadyAtCurrentBest:volumePlan.ready};
   }
   function optimizeCompressionPreparation(opts={}){
     const initial=Math.max(COMPRESSION_UNLOCK_DISCARDED,Math.floor(finite(opts.discardedAscensions,COMPRESSION_UNLOCK_DISCARDED))),maxUseful=Math.max(initial,293),prefixCache=new Map(),terminalSalesPerSecond=Math.max(1e-12,finite(opts.terminalSalesPerSecond,15.75)),rarePercent=clamp(finite(opts.rarePercent,100),0,100),gemLevel=Math.max(0,Math.min(10,Math.floor(finite(opts.gemLevel,10)))),routeOpts={...opts,terminalSalesPerSecond,rarePercent,gemLevel};
@@ -283,12 +309,12 @@
     const floorCycle=prefix(maxUseful).overlap[ASCENSION_MAX_COUNT],dp=new Map([[initial,{seconds:0,path:[]}]]);let best=null;
     for(let d=initial;d<=maxUseful;d++){
       const state=dp.get(d);if(!state)continue;if(best&&state.seconds+floorCycle>=best.completionOverlapSeconds-1e-9)continue;
-      const p=prefix(d),after=d+ASCENSION_MAX_COUNT,totalCrushLog=finite(routeOpts.totalCrushLog,0),target=Math.max(10000,observableUniverseBestLevel(after,totalCrushLog)),levelPush=compressionLevelPushPlan({discardedAscensions:d,initialBestLevel:routeOpts.bestLevel,targetLevel:target,terminalSalesPerSecond,rarePercent,gemLevel}),completion=state.seconds+p.overlap[ASCENSION_MAX_COUNT]+levelPush.seconds;
-      if(!best||completion<best.completionOverlapSeconds)best={completionOverlapSeconds:completion,prepOverlapSeconds:state.seconds,finalCycleOverlapSeconds:p.overlap[ASCENSION_MAX_COUNT],finalCycleDiscarded:d,extraLegacyCycles:state.path.slice(),levelPush,afterA500LegacyDiscarded:after,observableBestLevel:target>10000?target:observableUniverseBestLevel(after,totalCrushLog),levelTarget:target};
+      const p=prefix(d),after=d+ASCENSION_MAX_COUNT,currentBest=Math.max(0,Math.floor(finite(routeOpts.bestLevel))),target=Math.max(10000,currentBest),levelPush=compressionLevelPushPlan({discardedAscensions:d,initialBestLevel:currentBest,compressionLockedLevel:finite(routeOpts.compressionLockedLevel,currentBest),targetLevel:target,terminalSalesPerSecond,rarePercent,gemLevel}),completion=state.seconds+p.overlap[ASCENSION_MAX_COUNT]+levelPush.seconds,volumePlan=observableUniverseCrushPlan(routeOpts.totalVolumeCrushLog,compressionE(target,after),terminalSalesPerSecond);
+      if(!best||completion<best.completionOverlapSeconds)best={completionOverlapSeconds:completion,prepOverlapSeconds:state.seconds,finalCycleOverlapSeconds:p.overlap[ASCENSION_MAX_COUNT],finalCycleDiscarded:d,extraLegacyCycles:state.path.slice(),levelPush,afterA500LegacyDiscarded:after,observableBestLevel:null,levelTarget:target,volumePlan};
       for(let k=LEGACY_REQUIRED_ASCENSIONS;k<=maxUseful-d;k++){const nd=d+k,next=state.seconds+p.overlap[k],prev=dp.get(nd);if(!prev||next<prev.seconds)dp.set(nd,{seconds:next,path:state.path.concat(k)})}
     }
-    const chosen=best||compressionRouteEstimate(initial,[],routeOpts),sequential=compressionRouteEstimate(initial,chosen.extraLegacyCycles,routeOpts),currentBestLevel=Math.max(0,Math.floor(finite(routeOpts.bestLevel))),observableReadyAtCurrentBest=compressionVolumeLog(currentBestLevel,chosen.afterA500LegacyDiscarded,finite(routeOpts.totalCrushLog,0))>=COMPRESSION_VOLUME_TARGET_LOG;
-    return {initialDiscarded:initial,overlap:{seconds:chosen.completionOverlapSeconds,prepSeconds:chosen.prepOverlapSeconds,finalCycleSeconds:chosen.finalCycleOverlapSeconds,finalCycleDiscarded:chosen.finalCycleDiscarded,extraLegacyCycles:chosen.extraLegacyCycles.slice()},sequential:{seconds:sequential.completionSequentialSeconds,prepSeconds:sequential.prepSequentialSeconds,finalCycleSeconds:sequential.finalCycleSequentialSeconds,finalCycleDiscarded:sequential.finalCycleDiscarded,extraLegacyCycles:sequential.extraLegacyCycles.slice()},afterA500LegacyDiscarded:chosen.afterA500LegacyDiscarded,observableBestLevel:chosen.observableBestLevel,levelTarget:chosen.levelTarget,currentBestLevel,observableReadyAtCurrentBest,terminalSalesPerSecond,theoreticalTerminalSalesPerSecond:THEORETICAL_TERMINAL_SALES_RATE,rarePercent,gemLevel,levelPush:chosen.levelPush,completionOverlapSeconds:chosen.completionOverlapSeconds,completionSequentialSeconds:sequential.completionSequentialSeconds};
+    const chosen=best||compressionRouteEstimate(initial,[],routeOpts),sequential=compressionRouteEstimate(initial,chosen.extraLegacyCycles,routeOpts),currentBestLevel=Math.max(0,Math.floor(finite(routeOpts.bestLevel))),volumePlan=chosen.volumePlan||observableUniverseCrushPlan(routeOpts.totalVolumeCrushLog,compressionE(chosen.levelTarget,chosen.afterA500LegacyDiscarded),terminalSalesPerSecond),observableReadyAtCurrentBest=volumePlan.ready;
+    return {initialDiscarded:initial,overlap:{seconds:chosen.completionOverlapSeconds,prepSeconds:chosen.prepOverlapSeconds,finalCycleSeconds:chosen.finalCycleOverlapSeconds,finalCycleDiscarded:chosen.finalCycleDiscarded,extraLegacyCycles:chosen.extraLegacyCycles.slice()},sequential:{seconds:sequential.completionSequentialSeconds,prepSeconds:sequential.prepSequentialSeconds,finalCycleSeconds:sequential.finalCycleSequentialSeconds,finalCycleDiscarded:sequential.finalCycleDiscarded,extraLegacyCycles:sequential.extraLegacyCycles.slice()},afterA500LegacyDiscarded:chosen.afterA500LegacyDiscarded,observableBestLevel:null,levelTarget:chosen.levelTarget,currentBestLevel,observableReadyAtCurrentBest,volumePlan,terminalSalesPerSecond,theoreticalTerminalSalesPerSecond:THEORETICAL_TERMINAL_SALES_RATE,rarePercent,gemLevel,levelPush:chosen.levelPush,completionOverlapSeconds:chosen.completionOverlapSeconds,completionSequentialSeconds:sequential.completionSequentialSeconds};
   }
   function optimizeLegacyPartitions(opts={}){
     const startDiscarded=Math.max(0,Math.floor(finite(opts.discardedAscensions))),startAscension=Math.max(0,Math.floor(finite(opts.currentAscension))),unlock=Math.max(COMPRESSION_UNLOCK_DISCARDED,Math.floor(finite(opts.unlockDiscarded,COMPRESSION_UNLOCK_DISCARDED))),maxTarget=Math.max(LEGACY_REQUIRED_ASCENSIONS,Math.floor(finite(opts.maxLegacyTarget,ASCENSION_MAX_COUNT))),ascensionCost=typeof opts.ascensionCost==='function'?opts.ascensionCost:()=>Infinity,continuationCost=typeof opts.continuationCost==='function'?opts.continuationCost:()=>0,continuationFloor=Math.max(0,finite(opts.continuationFloor,0)),memo=new Map();
@@ -382,12 +408,234 @@
     return {raw,actual:1/interval,interval,effectiveRate};
   }
   function maxSupplyCappedSlowdown(coreLevels,ingotLevels,normalFeed=4){
-    let best=1;
-    for(const slowdown of SLOWDOWN){
-      if(topSpawnRate(coreLevels,ingotLevels,normalFeed,slowdown).raw+1e-12>=MAX_TOP_SPAWN_RATE)best=slowdown;
-      else if(slowdown>best)break;
+    // raw top spawn = feed / (BASE_SPAWN_INTERVAL * slowdown).  The cap boundary
+    // is monotone, so binary-search the discrete perk table instead of scanning it
+    // on every Ingot AUTO purchase in a campaign simulation.
+    const limit=Math.max(0,finite(normalFeed,4))*ingotEffect(3,ingotLevels[3])*coreEffect(4,coreLevels[4])/(BASE_SPAWN_INTERVAL*MAX_TOP_SPAWN_RATE);let lo=0,hi=SLOWDOWN.length-1,best=0;
+    while(lo<=hi){const mid=(lo+hi)>>1;if(SLOWDOWN[mid]<=limit*(1+1e-12)){best=mid;lo=mid+1}else hi=mid-1}
+    return SLOWDOWN[best]||1;
+  }
+
+  function effectiveAutoPurchasesPerSecond(frameRate=DEFAULT_NORMAL_AUTO_UPDATES_PER_SECOND){return Math.min(1/AUTO_BUY_INTERVAL,Math.max(.1,finite(frameRate,DEFAULT_NORMAL_AUTO_UPDATES_PER_SECOND)))}
+  function minimumCoreFeedLevelForSlowdown(slowdown=SLOWDOWN[SLOWDOWN.length-1],ingotLevels=Array(8).fill(0),normalFeed=1){
+    const levels=(ingotLevels||Array(8).fill(0)),need=MAX_TOP_SPAWN_RATE*BASE_SPAWN_INTERVAL*Math.max(1,finite(slowdown,1))/Math.max(1e-300,Math.max(.01,finite(normalFeed,1))*ingotEffect(3,levels[3]||0));
+    for(let level=0;level<CORE_FEED.length;level++)if(coreEffect(4,level)>=need*(1-1e-12))return level;
+    return CORE_FEED.length-1;
+  }
+  function compressionFarmPriorityCore(totalCore,opts={}){
+    const budget=Math.max(0,finite(totalCore)),maxFeed=maxCoreLevel(4,budget),slowdown=Math.max(1,finite(opts.slowdown,SLOWDOWN[SLOWDOWN.length-1])),ingotLevels=opts.ingotLevels||Array(8).fill(0),normalFeed=Math.max(.01,finite(opts.normalFeed,1)),feedCap=minimumCoreFeedLevelForSlowdown(slowdown,ingotLevels,normalFeed),feed=Math.min(maxFeed,feedCap),remaining=Math.max(0,budget-coreCost(4,feed)),damage=maxCoreLevel(2,remaining);
+    return [0,0,damage,0,feed];
+  }
+  function compressionFarmCoreForAscension(ascensionCount){return compressionFarmPriorityCore(totalCoreForAscension(ascensionCount),{slowdown:SLOWDOWN[SLOWDOWN.length-1],ingotLevels:Array(8).fill(0),normalFeed:normalEffect(7,NORMAL.max[7])})}
+  function compressionFarmCoreTable(fromAscension=0,toAscension=ASCENSION_MAX_COUNT){
+    // The table is the stable post-gate reference: Normal Feed AUTO is assumed at its
+    // Lv30 cap (effect 4.0), while Ingot Feed is deliberately assumed Lv0 because it
+    // changes too quickly to make a durable A-by-A lookup. Live policy evaluation uses
+    // the actual Ingot Feed and can therefore recommend an even lower Core Feed level.
+    const from=Math.max(0,Math.floor(finite(fromAscension))),to=Math.max(from,Math.min(ASCENSION_MAX_COUNT,Math.floor(finite(toAscension,ASCENSION_MAX_COUNT)))),rows=[],slowdown=SLOWDOWN[SLOWDOWN.length-1],normalFeed=normalEffect(7,NORMAL.max[7]),feedCap=minimumCoreFeedLevelForSlowdown(slowdown,Array(8).fill(0),normalFeed);
+    for(let a=from;a<=to;a++){
+      const total=totalCoreForAscension(a),maxFeedLevel=maxCoreLevel(4,total),core=compressionFarmPriorityCore(total,{slowdown,ingotLevels:Array(8).fill(0),normalFeed}),used=coreBundleCost(core),left=Math.max(0,total-used),feed=core[4],damage=core[2],nextFeedCost=feed+1<CORE_FEED_CUM.length?coreCost(4,feed+1)-coreCost(4,feed):Infinity,nextDamageCost=damage<1023?coreCost(2,damage+1)-coreCost(2,damage):Infinity;
+      rows.push({ascensionCount:a,totalCore:total,core,feedLevel:feed,damageLevel:damage,maxFeedLevel,feedCapped:feed<maxFeedLevel,feedCapLevel:feedCap,usedCore:used,leftoverCore:left,nextFeedCost,nextDamageCost});
+    }
+    return rows;
+  }
+  function ingotAutoMaskIndices(mask){mask=Math.max(0,Math.floor(finite(mask)));const out=[];for(let i=0;i<8;i++)if(mask&(1<<i))out.push(i);return out}
+  function nextIngotAutoCostFromIndices(levels,indices){
+    let index=-1,cost=Infinity;for(const i of indices){if(!canOptimizeIngot(i,levels[i]))continue;const c=ingotNextCost(i,levels[i]);if(c<cost){cost=c;index=i}}
+    return {index,cost};
+  }
+  function nextIngotAutoCost(levels,mask){return nextIngotAutoCostFromIndices(levels,ingotAutoMaskIndices(mask))}
+  function compressionFarmRateSensitiveIngot(index){return index===2||index===3||index===4||index===7}
+  function compressionFarmDamageState(opts,levels,core,slowdown,physicalSupply){
+    const level=Math.max(1,Math.floor(finite(opts.farmLevel,1000))),totalEarned=Math.max(0,finite(opts.totalIngotsEarned)),dpsCalibration=Math.max(1e-300,finite(opts.dpsCalibration,1)),damageBoost=Math.max(1e-300,finite(opts.damageBoostMultiplier,1)),hpCalibration=Math.max(1e-300,finite(opts.hpCalibration,1)),compressionLog=Math.max(0,finite(opts.compressionE,compressionE(compressionLockedLevel(opts),opts.discardedAscensions))),normalForDamage=Array.isArray(opts.normalLevels)&&opts.normalLevels.length===8?opts.normalLevels.map(x=>Math.max(0,Math.floor(finite(x)))):Array(8).fill(0),baseDpsLog=dpsLog10(normalForDamage,levels,core,totalEarned,dpsCalibration),liveDpsLog=baseDpsLog+Math.log10(damageBoost),tierLog=2*Math.log10(ORE_TIER_HP_MULTIPLIER),rawHp=baseOreHpLog10(level)+tierLog,capLog=baseDpsLog+Math.log10(ORE_MAX_CRUSH_SECONDS)+tierLog,hpWorstLog=softCapHpLog(rawHp,capLog)+Math.log10(Math.max(1,slowdown))+Math.log10(hpCalibration)+compressionLog+Math.log10(ORICHALCUM_HP_MULTIPLIER),dpsKillRate=MAX_ZONE_ORES*pow10(liveDpsLog-hpWorstLog),damageRatio=Math.min(1,dpsKillRate/Math.max(1e-300,physicalSupply));
+    return {level,baseDpsLog,liveDpsLog,hpWorstLog,dpsKillRate,damageRatio};
+  }
+  function compressionFarmSnapshot(opts={}){
+    const required=Math.max(1,finite(opts.requiredIngots,nextAscensionRequirement(opts.ascensionCount))),levels=(opts.ingotLevels||Array(8).fill(0)).map((v,i)=>Math.min(INGOT.optimizerCap[i],Math.max(0,Math.floor(finite(v))))),totalCore=Math.max(0,finite(opts.totalCore,totalCoreForAscension(opts.ascensionCount))),normalLevels=Array.isArray(opts.normalLevels)&&opts.normalLevels.length===8?opts.normalLevels.map(x=>Math.max(0,Math.floor(finite(x)))):null,normalFeed=Math.max(1,finite(opts.normalFeed,normalLevels?normalEffect(7,normalLevels[7]):4)),rarePercent=clamp(finite(opts.rarePercent,finite(opts.compressionRarePercent,normalLevels?normalEffect(3,normalLevels[3]):100)),0,100),explicitSlow=opts.slowdown==null?null:Math.max(1,finite(opts.slowdown,1)),core=Array.isArray(opts.coreLevels)&&opts.coreLevels.length===5?normalizeCore(opts.coreLevels):compressionFarmPriorityCore(totalCore,{slowdown:explicitSlow||SLOWDOWN[SLOWDOWN.length-1],ingotLevels:levels,normalFeed});
+    let slowdown=explicitSlow;
+    if(slowdown==null){
+      const maxSlow=maxSupplyCappedSlowdown(core,levels,normalFeed),maxLevel=Math.max(0,slowdownLevel(maxSlow));let lo=0,hi=maxLevel,best=0;
+      while(lo<=hi){const mid=(lo+hi)>>1,s=SLOWDOWN[mid]||1,spawn=topSpawnRate(core,levels,normalFeed,s),physicalSupply=spawn.actual*TERMINAL_ORES_PER_TOP,damage=compressionFarmDamageState(opts,levels,core,s,physicalSupply);if(damage.damageRatio>=1-1e-12){best=mid;lo=mid+1}else hi=mid-1}
+      slowdown=SLOWDOWN[best]||1;
+    }
+    const spawn=topSpawnRate(core,levels,normalFeed,slowdown),terminalEvents=spawn.actual*TERMINAL_ORES_PER_TOP,damage=compressionFarmDamageState({...opts,normalLevels:normalLevels||opts.normalLevels},levels,core,slowdown,terminalEvents),flowCalibration=Math.max(1e-9,finite(opts.directFlowCalibration,R82_DEFAULT_DIRECT_FLOW_CALIBRATION)),bombChance=opts.bombUnlocked?clamp(BOMB_RARITY_CHANCE*(opts.dangerEnabled?BOMB_DANGER_MULTIPLIER:1),0,1):0,ordinaryFraction=1-bombChance,perOre=compressionExpectedIngotPerOre(required,rarePercent,ingotEffect(4,levels[4]),ingotEffect(7,levels[7])),rate=terminalEvents*ordinaryFraction*flowCalibration*damage.damageRatio*perOre;
+    return {required,levels,core,normalLevels,normalFeed,rarePercent,slowdown,slowdownLevel:slowdownLevel(slowdown),topSpawn:spawn.actual,rawTopSpawn:spawn.raw,terminalEvents,bombChance,ordinaryFraction,flowCalibration,expectedIngotPerOre:perOre,rate,damageRatio:damage.damageRatio,dpsKillRate:damage.dpsKillRate,farmLevel:damage.level,hpWorstLog:damage.hpWorstLog,liveDpsLog:damage.liveDpsLog};
+  }
+  function simulateCompressionAutoHarvest(opts={}){
+    const required=Math.max(1,finite(opts.requiredIngots,nextAscensionRequirement(opts.ascensionCount))),initialHeld=Math.max(0,finite(opts.heldIngots)),initialLevels=(opts.ingotLevels||Array(8).fill(0)).map((v,i)=>Math.min(INGOT.optimizerCap[i],Math.max(0,Math.floor(finite(v))))),mask=Math.max(0,Math.min(255,Math.floor(finite(opts.autoMask,255)))),hz=effectiveAutoPurchasesPerSecond(opts.normalAutoUpdatesPerSecond),tick=1/hz,enabled=ingotAutoMaskIndices(mask),remainingPurchases=enabled.reduce((sum,i)=>sum+Math.max(0,INGOT.optimizerCap[i]-initialLevels[i]),0),maxPurchases=Math.max(0,Math.floor(Number.isFinite(Number(opts.maxPurchases))?Number(opts.maxPurchases):remainingPurchases)),base={...opts,requiredIngots:required};
+    let held=initialHeld,levels=initialLevels.slice(),elapsed=0,purchases=[],best=null,nextTick=tick;
+    const snapshot=()=>compressionFarmSnapshot({...base,ingotLevels:levels});
+    const consider=()=>{const snap=snapshot(),finish=elapsed+Math.max(0,required-held)/Math.max(1e-300,snap.rate),row={finishSeconds:finish,bestStopSeconds:finish,stopElapsed:elapsed,stopHeld:held,stopLevels:levels.slice(),core:snap.core.slice(),slowdown:snap.slowdown,slowdownLevel:snap.slowdownLevel,rate:snap.rate,topSpawn:snap.topSpawn,terminalEvents:snap.terminalEvents,damageRatio:snap.damageRatio,dpsKillRate:snap.dpsKillRate,farmLevel:snap.farmLevel,autoMask:mask,autoPurchases:purchases.slice(),autoHz:hz,directFlowCalibration:snap.flowCalibration,truncated:false};if(!best||row.finishSeconds<best.finishSeconds-1e-9||(Math.abs(row.finishSeconds-best.finishSeconds)<1e-9&&row.autoPurchases.length<best.autoPurchases.length))best=row;return snap};
+    let snap=consider();if(held>=required||mask===0)return best;
+    let exhausted=true;
+    for(let n=0;n<maxPurchases;n++){
+      const next=nextIngotAutoCostFromIndices(levels,enabled);if(next.index<0||!Number.isFinite(next.cost)){exhausted=false;break}
+      const rate=Math.max(1e-300,snap.rate),afford=Math.max(0,(next.cost-held)/rate),purchaseAt=Math.max(nextTick,elapsed+afford),wait=purchaseAt-elapsed;
+      if(purchaseAt>=best.finishSeconds-1e-12){exhausted=false;break}
+      held+=rate*wait;if(held+Math.max(1,next.cost)*1e-12<next.cost)break;held-=next.cost;elapsed=purchaseAt;nextTick=elapsed+tick;const before=levels[next.index];levels[next.index]++;
+      snap=snapshot();purchases.push({time:elapsed,index:next.index,fromLevel:before,toLevel:levels[next.index],cost:next.cost,heldAfter:held,rateAfter:snap.rate,slowdownLevel:snap.slowdownLevel});consider();if(held>=required)break;
+    }
+    if(best&&exhausted&&maxPurchases<remainingPurchases)best={...best,truncated:true};
+    return best;
+  }
+  function optimizeCompressionAutoHarvest(opts={}){
+    if(Number.isFinite(Number(opts.autoMask)))return simulateCompressionAutoHarvest(opts);
+    // Post-gate direct▲ can be limited by crusher DPS as well as supply. Damage (2),
+    // Feed (3), Gem (4) and Ori (7) are therefore the only Ingot upgrades that can
+    // improve this terminal farm directly. Search all 16 undominated masks exactly;
+    // the other four upgrades only spend the same▲ pool once the Prestige gate is over.
+    const relevant=[2,3,4,7],masks=[];for(let bits=0;bits<(1<<relevant.length);bits++){let mask=0;for(let j=0;j<relevant.length;j++)if(bits&(1<<j))mask|=1<<relevant[j];masks.push(mask)}
+    let best=null;for(const mask of masks){
+      const row=simulateCompressionAutoHarvest({...opts,autoMask:mask});if(!row)continue;
+      const bits=ingotAutoMaskIndices(mask).length,bestBits=best?ingotAutoMaskIndices(best.autoMask).length:Infinity;
+      if(!best||row.finishSeconds<best.finishSeconds-1e-9||(Math.abs(row.finishSeconds-best.finishSeconds)<1e-9&&(row.autoPurchases.length<best.autoPurchases.length||(row.autoPurchases.length===best.autoPurchases.length&&bits<bestBits))))best=row;
     }
     return best;
+  }
+  function simulateCompressionAutoWindow(opts={}){
+    const seconds=Math.max(0,finite(opts.seconds)),required=Math.max(1,finite(opts.requiredIngots,nextAscensionRequirement(opts.ascensionCount))),mask=Math.max(0,Math.min(255,Math.floor(finite(opts.autoMask,255)))),enabled=ingotAutoMaskIndices(mask),trackPurchases=opts.trackPurchases!==false,hz=effectiveAutoPurchasesPerSecond(opts.normalAutoUpdatesPerSecond),tick=1/hz,levels=(opts.ingotLevels||Array(8).fill(0)).map((v,i)=>Math.min(INGOT.optimizerCap[i],Math.max(0,Math.floor(finite(v))))),nextCosts=Array(8).fill(Infinity);for(const i of enabled)if(canOptimizeIngot(i,levels[i]))nextCosts[i]=ingotNextCost(i,levels[i]);let held=Math.max(0,finite(opts.heldIngots)),elapsed=0,nextTick=tick,purchases=trackPurchases?[]:null,purchaseCount=0,snap=compressionFarmSnapshot({...opts,requiredIngots:required,ingotLevels:levels});
+    // Event-drive the frame/timer gate. Replaying every empty Update made an A500
+    // campaign spend millions of iterations proving that an upgrade was still too
+    // expensive. Between purchases the direct rate is constant, so we can jump to
+    // the first future AUTO tick on which the cheapest enabled upgrade is affordable.
+    // Keep next costs incrementally: all eight use an exact ×2 cost progression.
+    while(mask&&nextTick<=seconds+1e-12){
+      let index=-1,cost=Infinity;for(const i of enabled)if(nextCosts[i]<cost){cost=nextCosts[i];index=i}if(index<0||!Number.isFinite(cost))break;
+      const affordAt=elapsed+Math.max(0,(cost-held)/Math.max(1e-300,snap.rate)),ticksAhead=Math.max(0,Math.ceil((affordAt-nextTick)/tick-1e-12)),purchaseAt=nextTick+ticksAhead*tick;if(purchaseAt>seconds+1e-12)break;
+      held+=snap.rate*(purchaseAt-elapsed);elapsed=purchaseAt;if(held+Math.max(1,cost)*1e-12<cost){nextTick+=tick;continue}held-=cost;const from=levels[index];levels[index]++;purchaseCount++;nextCosts[index]=canOptimizeIngot(index,levels[index])?cost*2:Infinity;if(compressionFarmRateSensitiveIngot(index))snap=compressionFarmSnapshot({...opts,requiredIngots:required,ingotLevels:levels});if(trackPurchases)purchases.push({time:elapsed,index,fromLevel:from,toLevel:levels[index],cost,heldAfter:held,rateAfter:snap.rate,slowdownLevel:snap.slowdownLevel});nextTick=elapsed+tick;
+    }
+    if(elapsed<seconds){held+=snap.rate*(seconds-elapsed);elapsed=seconds}
+    return {seconds:elapsed,heldIngots:held,ingotLevels:levels.slice(),purchases:trackPurchases?purchases:[],purchaseCount,rate:snap.rate,core:snap.core.slice(),slowdown:snap.slowdown,slowdownLevel:snap.slowdownLevel,autoMask:mask,autoHz:hz};
+  }
+  function estimateClosedLoopPrestigeGate(opts={},measurements=DEFAULT_MEASUREMENTS){
+    const required=Math.max(1,finite(opts.requiredIngots,nextAscensionRequirement(opts.ascensionCount))),totalCore=Math.max(0,finite(opts.totalCore,totalCoreForAscension(opts.ascensionCount))),core=compressionFarmPriorityCore(totalCore),startingPrestige=Math.max(0,Math.floor(finite(opts.prestigeCount))),needRuns=Math.max(0,25-startingPrestige),cal=fitCalibration(measurements,opts.normalAutoUpdatesPerSecond),compressionOpts=compressionCurveOptions(opts);let held=Math.max(0,finite(opts.heldIngots)),levels=(opts.ingotLevels||Array(8).fill(0)).map((v,i)=>Math.min(INGOT.optimizerCap[i],Math.max(0,Math.floor(finite(v))))),totalEarned=Math.max(0,finite(opts.totalIngotsEarned)),elapsed=0,runs=[],purchaseCount=0;
+    const timingAt=(probeLevels,probeEarned)=>{const curve=simulateCurve({maxTarget:256,core,ingot:probeLevels,slowdown:1,physicalCap:cal.physicalCap,totalIngotsEarned:probeEarned,dpsCalibration:opts.dpsCalibration,damageBoostMultiplier:opts.damageBoostMultiplier,hpCalibration:opts.hpCalibration,...compressionOpts,normalAutoEnabled:true,normalAutoUpdatesPerSecond:opts.normalAutoUpdatesPerSecond,normalAutoCalibration:cal}),timing=timingResolver(curve,cal,core,probeLevels,1,measurements),configured=timing.secondsAt(50),seconds=Math.max(AUTO_PRESTIGE_INTERVAL,actualAutoCycle(configured));return {seconds,actualLevel:timing.levelAt(seconds)}};
+    let invariantTiming=null;
+    if(needRuns>1&&opts.disableGateTimingFastPath!==true){
+      const first=timingAt(levels,totalEarned),maxLevels=levels.map((v,i)=>Math.max(v,INGOT.optimizerCap[i])),maxEarned=totalEarned+needRuns*Math.max(1,prestigeGain(256,0)),bestCase=timingAt(maxLevels,maxEarned);
+      // Every upgrade/Prestige multiplier change between these endpoints is monotone
+      // for a Slowdown-1 gate run. If even the impossible fully-upgraded endpoint hits
+      // the same poll and actual level, the timing cannot change inside the interval.
+      if(first.seconds===bestCase.seconds&&first.actualLevel===bestCase.actualLevel)invariantTiming=first;
+    }
+    for(let n=0;n<needRuns;n++){
+      // AUTO PRESTIGE polls once per second. Simulate far enough beyond Lv50 to
+      // account for poll overshoot; that actual reached level determines the Prestige
+      // payout. Direct▲ earned during the same run is independently reinvested by the
+      // 10 ms / frame-limited Ingot AUTO and persists into the following run.
+      const gateTiming=invariantTiming||timingAt(levels,totalEarned),seconds=gateTiming.seconds,actualLevel=gateTiming.actualLevel,window=simulateCompressionAutoWindow({...opts,totalIngotsEarned:totalEarned,requiredIngots:required,totalCore,coreLevels:core,heldIngots:held,ingotLevels:levels,seconds,autoMask:255,trackPurchases:false}),gain=prestigeGain(actualLevel,0);
+      held=window.heldIngots+gain;totalEarned+=gain;levels=window.ingotLevels.slice();elapsed+=seconds;purchaseCount+=window.purchaseCount;runs.push({run:n+1,targetLevel:50,actualPrestigeLevel:actualLevel,seconds,prestigeGain:gain,heldIngots:held,totalIngotsEarned:totalEarned,ingotLevels:levels.slice(),purchases:window.purchaseCount,slowdownLevel:window.slowdownLevel});
+    }
+    return {seconds:elapsed,runs,heldIngots:held,totalIngotsEarned:totalEarned,ingotLevels:levels,core,prestigeCount:startingPrestige+needRuns,purchaseCount,timingFastPath:!!invariantTiming};
+  }
+  function compressionFarmDamageSafety(opts,gate,farm,measurements=DEFAULT_MEASUREMENTS){
+    if(!gate||!farm||!(farm.finishSeconds>0))return null;
+    // Freeze Ingot levels at the end of the 25-Prestige gate. Any later Ingot AUTO
+    // can only improve Damage/Feed, so this is a conservative check that the proposed
+    // supply-capped Slowdown does not outrun the crusher before the harvest finishes.
+    const cal=fitCalibration(measurements,opts.normalAutoUpdatesPerSecond),maxTarget=10000,curve=simulateCurve({maxTarget,core:farm.core,ingot:gate.ingotLevels,slowdown:farm.slowdown,physicalCap:cal.physicalCap,totalIngotsEarned:opts.totalIngotsEarned,dpsCalibration:opts.dpsCalibration,damageBoostMultiplier:opts.damageBoostMultiplier,hpCalibration:opts.hpCalibration,...compressionCurveOptions({...opts,compressionEnabled:true}),normalAutoEnabled:true,normalAutoUpdatesPerSecond:opts.normalAutoUpdatesPerSecond,normalAutoCalibration:cal});
+    const budget=Math.max(0,finite(farm.finishSeconds)),timeAt=i=>calibratedSeconds(curve.times[Math.min(i,curve.times.length-1)]||0,cal);let lo=1,hi=Math.max(1,curve.times.length-1);while(lo<hi){const mid=(lo+hi+1)>>1;if(timeAt(mid)<=budget)lo=mid;else hi=mid-1}const level=lo;let minRatio=Infinity,worstLevel=1,worstKill=0,worstSupply=0;
+    for(let l=2;l<=level;l++){const supply=Math.max(1e-300,(curve.topSpawnRates[l]||0)*expectedTerminalPerTop(Math.max(1,l-1))),kill=Math.max(0,curve.dpsKillRates[l]||0),ratio=kill/supply;if(ratio<minRatio){minRatio=ratio;worstLevel=l;worstKill=kill;worstSupply=supply}}
+    if(!Number.isFinite(minRatio))minRatio=Infinity;
+    return {safe:minRatio>=1,levelAtFinish:level,worstLevel,dpsKillRate:worstKill,terminalSupply:worstSupply,killToSupplyRatio:minRatio,minKillToSupplyRatio:minRatio,conservative:true};
+  }
+  function optimizeClosedLoopAscensionPolicy(opts={},measurements=DEFAULT_MEASUREMENTS){
+    if(!compressionUnlocked(opts.discardedAscensions)||opts.compressionEnabled===false)return null;
+    const required=Math.max(1,finite(opts.nextRequirement,nextAscensionRequirement(opts.ascensionCount))),totalCore=Math.max(0,finite(opts.totalCore,totalCoreForAscension(opts.ascensionCount))),observedDestroyRate=Math.max(0,finite(opts.compressionDestroyRate,0));
+    let directFlowCalibration=Number.isFinite(Number(opts.directFlowCalibration))?Math.max(1e-9,Number(opts.directFlowCalibration)):R82_DEFAULT_DIRECT_FLOW_CALIBRATION,flowCalibrationSource='r82-physical';
+    if(observedDestroyRate>0&&Array.isArray(opts.currentCoreLevels)&&opts.currentCoreLevels.length===5){
+      const currentSlowLevel=Math.max(0,Math.min(SLOWDOWN.length-1,Math.floor(finite(opts.currentSlowdownLevel))));
+      const currentSlow=SLOWDOWN[currentSlowLevel]||1,currentProbe=compressionFarmSnapshot({...opts,requiredIngots:required,totalCore,coreLevels:opts.currentCoreLevels,ingotLevels:opts.ingotLevels||Array(8).fill(0),normalFeed:4,slowdown:currentSlow,directFlowCalibration:1}),modeledCurrentDestroy=currentProbe.terminalEvents*currentProbe.ordinaryFraction*currentProbe.damageRatio;
+      if(modeledCurrentDestroy>1e-9){directFlowCalibration=clamp(observedDestroyRate/modeledCurrentDestroy,.05,20);flowCalibrationSource='current-crush-rate'}
+    }
+    const gate=estimateClosedLoopPrestigeGate({...opts,compressionEnabled:true,nextRequirement:required,totalCore,directFlowCalibration},measurements),farmCore=compressionFarmPriorityCore(totalCore,{slowdown:SLOWDOWN[SLOWDOWN.length-1],ingotLevels:gate.ingotLevels,normalFeed:4}),farmBase={...opts,ascensionCount:Math.max(0,Math.floor(finite(opts.ascensionCount))),requiredIngots:required,heldIngots:gate.heldIngots,totalIngotsEarned:gate.totalIngotsEarned,ingotLevels:gate.ingotLevels,totalCore,coreLevels:farmCore,normalAutoUpdatesPerSecond:opts.normalAutoUpdatesPerSecond,directFlowCalibration},farm=optimizeCompressionAutoHarvest(farmBase),allAuto=opts.skipFarmComparisons?null:simulateCompressionAutoHarvest({...farmBase,autoMask:255}),noAuto=opts.skipFarmComparisons?null:simulateCompressionAutoHarvest({...farmBase,autoMask:0}),totalSeconds=gate.seconds+(farm?farm.finishSeconds:Infinity),maskNames=farm?ingotAutoMaskIndices(farm.autoMask).map(i=>INGOT.names[i]):[];
+    const damageSafety=opts.verifyDamageSafety?compressionFarmDamageSafety({...opts,nextRequirement:required,totalCore},gate,farm,measurements):null;
+    return {ascensionCount:Math.max(0,Math.floor(finite(opts.ascensionCount))),requiredIngots:required,totalCore,gate,farm,totalSeconds,allAutoSeconds:allAuto?gate.seconds+allAuto.finishSeconds:null,noAutoSeconds:noAuto?gate.seconds+noAuto.finishSeconds:null,farmCore:farm?farm.core.slice():farmCore,farmSlowdown:farm?farm.slowdown:1,farmSlowdownLevel:farm?farm.slowdownLevel:0,autoMask:farm?farm.autoMask:0,autoNames:maskNames,autoStopLevels:farm?farm.stopLevels.slice():gate.ingotLevels.slice(),directFlowCalibration,flowCalibrationSource,observedDestroyRate,damageSafety,policy:['AUTO PRESTIGE Lv50で25回条件を埋める（通常/Ingot AUTOはON）','25回後はAUTO PRESTIGEをOFF',`Core供給はSlowdown Lv${SLOWDOWN.length-1}で20 top/sを維持できる所まで→残りを破壊力へ割当`,'供給20 top/sを維持できる最大Slowdownへ追従',farm&&farm.autoMask?`Ingot AUTOは ${maskNames.join(' / ')} のみON`:'Ingot AUTOはOFF',farm?`Ingot ${farm.stopLevels.join('/')} 到達を目安にAUTOを全OFFし残り▲を貯める`:'残り▲を貯める']};
+  }
+
+  const compressionOffLowerBoundCache=new Map();let compressionOffPrestigeRateProfile=null;
+  function compressionOffMaxPrestigeRateProfile(){
+    if(compressionOffPrestigeRateProfile)return compressionOffPrestigeRateProfile;
+    // Impossible-but-physical relaxation for Compression OFF: all EXP/rarity Ingot
+    // upgrades are granted for free, Slowdown is at its maximum, HP/DPS never bind,
+    // and every terminal ore is processed at the spawn ceiling. This can only make
+    // Prestige generation faster than a real route, so its best average base-gain/s
+    // is a safe upper bound for OFF Prestige throughput at every Ascension.
+    const maxLevel=100000,geometry=ensureLevelGeometry(maxLevel),ingot=[0,INGOT.optimizerCap[1],0,0,INGOT.optimizerCap[4],INGOT.optimizerCap[5],INGOT.optimizerCap[6],INGOT.optimizerCap[7]],rarity=rarityState([0,0,0,200,0,0,0,0],ingot),slowdown=SLOWDOWN[SLOWDOWN.length-1],packetOffset=Math.log10(slowdown)+Math.log10(.125*ingotEffect(1,ingot[1])),rareLog=Math.log10(10*ingotEffect(5,ingot[5])),gemLog=Math.log10(20*ingotEffect(5,ingot[5])),oriLog=Math.log10(200*ingotEffect(5,ingot[5]));let rawSeconds=0,bestRate=0,bestLevel=50;
+    for(let level=1;level<maxLevel;level++){
+      const packetDelta=geometry.valueLog[level]+packetOffset-geometry.requiredExpLog[level],work=d=>d>=0?1:(d<-323?0:Math.pow(10,d)),useful=rarity.pNormal*work(packetDelta)+rarity.pRare*work(packetDelta+rareLog)+rarity.pGem*work(packetDelta+gemLog)+rarity.pOri*work(packetDelta+oriLog),terminals=1/Math.max(1e-300,useful);rawSeconds+=terminals/THEORETICAL_TERMINAL_SALES_RATE;const target=level+1;if(target<50)continue;const seconds=Math.max(AUTO_PRESTIGE_INTERVAL,rawSeconds),rate=prestigeBase(target)/seconds;if(rate>bestRate){bestRate=rate;bestLevel=target}
+    }
+    compressionOffPrestigeRateProfile={baseGainPerSecond:bestRate,targetLevel:bestLevel,maxLevel,relaxation:'free max EXP/rarity upgrades + max Slowdown + no HP/DPS wall + max terminal throughput'};return compressionOffPrestigeRateProfile;
+  }
+  function compressionOffEtaLowerBound(stateOrAscension,heldIngots=0,prestigeCount=0){
+    const state=stateOrAscension&&typeof stateOrAscension==='object'?stateOrAscension:null,a=Math.max(0,Math.floor(finite(state?state.ascensionCount:stateOrAscension))),held=Math.max(0,finite(state?state.heldIngots:heldIngots)),count=Math.max(0,Math.floor(finite(state?state.prestigeCount:prestigeCount))),required=Math.max(1,finite(state&&state.nextRequirement,nextAscensionRequirement(a))),totalCore=Math.max(0,finite(state&&state.totalCore,totalCoreForAscension(a))),cacheKey=[a,held,count,required,totalCore].join('|');if(compressionOffLowerBoundCache.has(cacheKey))return compressionOffLowerBoundCache.get(cacheKey);
+    const need=Math.max(0,required-held),countNeed=Math.max(0,25-count),coreIngot=maxCoreLevel(1,totalCore),profile=compressionOffMaxPrestigeRateProfile(),maxPrestigeRate=Math.max(1e-300,profile.baseGainPerSecond*coreEffect(1,coreIngot)),seconds=Math.max(countNeed*AUTO_PRESTIGE_INTERVAL,need/maxPrestigeRate),result={seconds,targetLevel:profile.targetLevel,runs:countNeed,coreIngotLevel:coreIngot,heldIngots:held,prestigeCount:count,remainingPrestiges:countNeed,requiredIngots:required,maxPrestigeRate,relaxation:profile.relaxation};compressionOffLowerBoundCache.set(cacheKey,result);return result;
+  }
+  function optimizeClosedLoopAscensionMode(opts={},measurements=DEFAULT_MEASUREMENTS){
+    const a=Math.max(0,Math.floor(finite(opts.ascensionCount))),on=optimizeClosedLoopAscensionPolicy({...opts,compressionEnabled:true},measurements),onSeconds=on&&Number.isFinite(on.totalSeconds)?on.totalSeconds:Infinity,offLowerBound=compressionOffEtaLowerBound(opts);let off=null,offPrunedByLowerBound=false;
+    if(on&&offLowerBound.seconds>=onSeconds-1e-9)offPrunedByLowerBound=true;
+    else{
+      const evaluated=optimizeCompressionModeAtAscension({...opts,compressionEnabled:false},measurements,false,32);
+      if(evaluated&&Number.isFinite(evaluated.eta))off={...evaluated,seconds:evaluated.eta};
+    }
+    const offSeconds=off?off.seconds:Infinity,mode=offSeconds<onSeconds-1e-9?'off':'on',seconds=mode==='off'?offSeconds:onSeconds;
+    return {ascensionCount:a,mode,seconds,on,off,offLowerBound,offPrunedByLowerBound,proof:offPrunedByLowerBound?'Compression OFFの理論下界がCompression ON実行時間以上なのでOFFを安全に枝刈り。':off?'Compression OFF/ONを両方実計算して比較。':'Compression ONのみ実行可能。'};
+  }
+  function closedLoopFreshPrestigeFloor(measurements=DEFAULT_MEASUREMENTS,normalAutoUpdatesPerSecond=DEFAULT_NORMAL_AUTO_UPDATES_PER_SECOND){
+    const cal=fitCalibration(measurements,normalAutoUpdatesPerSecond),terminalSupplyUpper=THEORETICAL_TERMINAL_SALES_RATE,processedUpper=cal.physicalCap*terminalSupplyUpper/(cal.physicalCap+terminalSupplyUpper),rawLevel50Seconds=49/Math.max(1e-12,processedUpper),runSeconds=actualAutoCycle(calibratedSeconds(rawLevel50Seconds,cal)),freshAscensionSeconds=25*runSeconds;
+    return {runSeconds,freshAscensionSeconds,processedUpper,calibration:cal,reason:'各PrestigeはLv50まで最低49回のLevel遷移が必要。contact/terminal双方を理論上限に置いた処理上限と1秒AUTO PRESTIGE pollを使うため、実行可能経路より速い下界。'};
+  }
+  function legacyCampaignLowerBound(opts={},measurements=DEFAULT_MEASUREMENTS){
+    const goalAscension=Math.max(1,Math.min(ASCENSION_MAX_COUNT,Math.floor(finite(opts.campaignGoalAscension,ASCENSION_MAX_COUNT)))),startA=Math.max(0,Math.min(goalAscension,Math.floor(finite(opts.ascensionCount)))),prestigeCount=Math.max(0,Math.floor(finite(opts.prestigeCount))),floor=closedLoopFreshPrestigeFloor(measurements,opts.normalAutoUpdatesPerSecond),overrideFloor=Number(opts.campaignAscensionLowerBoundSeconds),freshAscensionSeconds=Number.isFinite(overrideFloor)?Math.max(0,overrideFloor):floor.freshAscensionSeconds,eligibilityAscends=Math.max(0,LEGACY_REQUIRED_ASCENSIONS-startA);let eligibilityRuns=0,eligibilitySeconds=0;
+    if(eligibilityAscends>0){if(Number.isFinite(overrideFloor))eligibilitySeconds=Math.max(0,eligibilityAscends-1)*freshAscensionSeconds;else{eligibilityRuns=Math.max(0,25-prestigeCount)+Math.max(0,eligibilityAscends-1)*25;eligibilitySeconds=eligibilityRuns*floor.runSeconds}}
+    const postResetSeconds=goalAscension*freshAscensionSeconds;
+    return {seconds:eligibilitySeconds+postResetSeconds,eligibilitySeconds,postResetSeconds,eligibilityAscends,eligibilityRuns,goalAscension,runSeconds:floor.runSeconds,freshAscensionSeconds,processedUpper:floor.processedUpper,reason:floor.reason+` Legacy後はA0からA${goalAscension}まで${goalAscension}回すべてfresh Ascensionなので、この下界はdiscarded/locked best/事前best-Level pushに依存しない。push時間を0秒としてもこれより速くならない。`};
+  }
+  function closedLoopPolicySummary(policy){
+    if(!policy)return null;return {ascensionCount:policy.ascensionCount,totalSeconds:policy.totalSeconds,gateSeconds:policy.gate&&policy.gate.seconds||0,farmSeconds:policy.farm&&policy.farm.finishSeconds||0,farmCore:policy.farmCore&&policy.farmCore.slice(),farmSlowdown:policy.farmSlowdown,farmSlowdownLevel:policy.farmSlowdownLevel,autoMask:policy.autoMask,autoNames:(policy.autoNames||[]).slice(),autoStopLevels:(policy.autoStopLevels||[]).slice(),policy:(policy.policy||[]).slice(),directFlowCalibration:policy.directFlowCalibration};
+  }
+  function closedLoopModeSummary(choice){
+    if(!choice)return null;
+    if(choice.mode==='on')return {...closedLoopPolicySummary(choice.on),damageSafety:choice.on&&choice.on.damageSafety||null,mode:'on',offPrunedByLowerBound:choice.offPrunedByLowerBound,offLowerBoundSeconds:choice.offLowerBound&&choice.offLowerBound.seconds,proof:choice.proof};
+    const p=choice.off&&choice.off.plan,roadmap=choice.off&&choice.off.roadmap;
+    return {ascensionCount:choice.ascensionCount,totalSeconds:choice.seconds,mode:'off',gateSeconds:choice.seconds,farmSeconds:0,farmCore:p&&p.core?p.core.slice():[],farmSlowdown:p&&p.slowdown||1,farmSlowdownLevel:p?slowdownLevel(p.slowdown):0,autoMask:null,autoNames:[],autoStopLevels:roadmap&&roadmap.targetLevels?roadmap.targetLevels.slice():(choice.off&&choice.off.ingotLevels?choice.off.ingotLevels.slice():[]),policy:['Compression OFF','通常のPrestige/Ingot購入roadmapで次ASCENDまで進む'],offPrunedByLowerBound:false,offLowerBoundSeconds:choice.offLowerBound&&choice.offLowerBound.seconds,proof:choice.proof};
+  }
+  function optimizeClosedLoopA500Campaign(opts={},measurements=DEFAULT_MEASUREMENTS){
+    const goalAscension=Math.max(1,Math.min(ASCENSION_MAX_COUNT,Math.floor(finite(opts.campaignGoalAscension,ASCENSION_MAX_COUNT)))),startA=Math.max(0,Math.min(goalAscension,Math.floor(finite(opts.ascensionCount)))),startDiscarded=Math.max(0,Math.floor(finite(opts.discardedAscensions))),bestLevel=Math.max(0,Math.floor(finite(opts.maxLevelEver))),allowLegacy=opts.allowLegacy!==false;
+    if(!compressionUnlocked(startDiscarded))return null;
+    if(startA>=goalAscension)return {totalSeconds:0,firstAction:'complete',actions:[],legacyActions:[],pushActions:[],nextLegacyAt:null,currentChoice:null,currentPolicy:null,visitedStates:1,edgeEvaluations:0,bestLevel,compressionLockedLevel:Math.max(0,Math.floor(finite(opts.compressionLockedLevel,bestLevel))),discardedAscensions:startDiscarded,finalDiscardedAscensions:startDiscarded,startAscension:startA,goalAscension,allowLegacy,modeCounts:{},legacySearchComplete:true,legacyModeCoverage:`A${goalAscension} reached`,legacyBestLevelScope:bestLevel};
+    // Solve the straight-through feasible incumbent first. A Legacy branch may be
+    // discarded only when a real model lower bound already loses: after any Legacy,
+    // A resets to 0 and all 500 Ascensions must satisfy the 25-Prestige gate again.
+    // The bound grants maximum contact/supply throughput, zero direct-Ingot wait,
+    // zero UI cost and zero best-Level-push cost, so discarded count or a hypothetical
+    // arbitrarily good push cannot invalidate the prune.
+    if(allowLegacy){
+      const incumbent=optimizeClosedLoopA500Campaign({...opts,allowLegacy:false},measurements);if(!incumbent)return null;const legacyLowerBound=legacyCampaignLowerBound(opts,measurements);
+      if(legacyLowerBound.seconds>=incumbent.totalSeconds-1e-9){
+        return {...incumbent,allowLegacy:true,legacyActions:[],nextLegacyAt:null,legacyPrunedByLowerBound:true,legacyLowerBoundSeconds:legacyLowerBound.seconds,legacyLowerBound,legacyGapSeconds:legacyLowerBound.seconds-incumbent.totalSeconds,legacySearchComplete:true,legacyModeCoverage:'per-Ascension Compression OFF/ON comparison + admissible full-reset Prestige-floor bound',legacyBestLevelScope:`best Lv${bestLevel}; Legacy lower bound gives every pre-Legacy best-Level push zero cost and therefore covers every possible pushed level`};
+      }
+    }
+    const zeroIngot=Array(8).fill(0),startLockedLevel=Math.max(0,Math.floor(finite(opts.compressionLockedLevel,bestLevel))),edgeCache=new Map(),dist=new Map(),prev=new Map(),heap=[];let visitedStates=0,edgeEvaluations=0,serial=0;
+    const freshFloor=Math.max(0,finite(opts.campaignAscensionLowerBoundSeconds,closedLoopFreshPrestigeFloor(measurements,opts.normalAutoUpdatesPerSecond).freshAscensionSeconds)),heuristic=(a,initial)=>Math.max(0,goalAscension-a-(initial?1:0))*freshFloor,key=(d,a,l,b)=>[d,a,l,b].join('|'),better=(x,y)=>x.priority<y.priority-1e-12||(Math.abs(x.priority-y.priority)<=1e-12&&(x.cost<y.cost-1e-12||(Math.abs(x.cost-y.cost)<=1e-12&&x.serial<y.serial))),heapPush=(cost,d,a,l,b,initial=false)=>{const item={cost,priority:cost+heuristic(a,initial),d,a,l,b,initial,serial:serial++};heap.push(item);let i=heap.length-1;while(i>0){const p=(i-1)>>1;if(!better(heap[i],heap[p]))break;heap[i]=heap[p];i=p}heap[i]=item},pop=()=>{if(!heap.length)return null;const root=heap[0],last=heap.pop();if(heap.length&&last){let i=0;heap[0]=last;for(;;){let l=i*2+1,r=l+1,b=i;if(l<heap.length&&better(heap[l],heap[b]))b=l;if(r<heap.length&&better(heap[r],heap[b]))b=r;if(b===i)break;const t=heap[i];heap[i]=heap[b];heap[b]=t;i=b}}return root};
+    const freshInput=(a,d,l,b)=>({...opts,ascensionCount:a,discardedAscensions:d,compressionLockedLevel:l,maxLevelEver:b,totalCore:totalCoreForAscension(a),heldIngots:legacyStartIngot(d),totalIngotsEarned:0,prestigeMultiplier:1,prestigeCount:0,currentCoreLevels:null,currentSlowdownLevel:0,normalAutoUnlocked:true,ingotLevels:zeroIngot.slice(),nextRequirement:nextAscensionRequirement(a),compressionDestroyRate:0,damageBoostActive:false,incomeBoostActive:false,expBoostActive:false,damageBoostMultiplier:1,skipFarmComparisons:true});
+    const defaultMaxLevelReached=choice=>{if(!choice)return 0;if(choice.mode==='on'&&choice.on){let m=0;for(const r of choice.on.gate&&choice.on.gate.runs||[])m=Math.max(m,Math.floor(finite(r.actualPrestigeLevel)));if(choice.on.damageSafety)m=Math.max(m,Math.floor(finite(choice.on.damageSafety.levelAtFinish)));return m}const p=choice.off&&choice.off.plan;return p?Math.max(Math.floor(finite(p.actualPrestigeLevel)),Math.floor(finite(p.targetLevel))):0};
+    const edge=node=>{const cacheKey=node.initial?'initial':key(node.d,node.a,node.l,node.b);if(edgeCache.has(cacheKey))return edgeCache.get(cacheKey);const input=node.initial?{...opts,compressionLockedLevel:node.l,maxLevelEver:node.b,verifyDamageSafety:true,skipFarmComparisons:true,totalCore:Math.max(0,finite(opts.totalCore,totalCoreForAscension(node.a))),nextRequirement:Math.max(1,finite(opts.nextRequirement,nextAscensionRequirement(node.a)))}:freshInput(node.a,node.d,node.l,node.b);let result;
+      if(typeof opts.campaignAscensionEdge==='function'){const raw=opts.campaignAscensionEdge({ascensionCount:node.a,discardedAscensions:node.d,compressionLockedLevel:node.l,maxLevelEver:node.b,initial:node.initial,input});const seconds=Math.max(0,finite(raw&&raw.seconds,raw)),mode=raw&&raw.mode||'on',policy=raw&&raw.policy||{ascensionCount:node.a,totalSeconds:seconds,mode,policy:['synthetic campaign edge']};result={seconds,mode,policy,maxLevelReached:Math.max(node.b,Math.floor(finite(raw&&raw.maxLevelReached,node.b))),choice:raw&&raw.choice||null};}
+      else{const choice=optimizeClosedLoopAscensionMode(input,measurements),seconds=choice&&Number.isFinite(choice.seconds)?choice.seconds:Infinity;result={seconds,mode:choice&&choice.mode||'on',policy:closedLoopModeSummary(choice),maxLevelReached:Math.max(node.b,defaultMaxLevelReached(choice)),choice};}
+      edgeEvaluations++;edgeCache.set(cacheKey,result);return result};
+    const pushTargets=node=>{const supplied=typeof opts.campaignPushTargets==='function'?opts.campaignPushTargets({ascensionCount:node.a,discardedAscensions:node.d,compressionLockedLevel:node.l,maxLevelEver:node.b}):opts.campaignPushTargets,raw=Array.isArray(supplied)?supplied:(node.b<10000?[10000]:[]);return [...new Set(raw.map(x=>Math.max(0,Math.floor(finite(x)))).filter(x=>x>node.b))].sort((a,b)=>a-b)};
+    const pushPlan=(node,target)=>{if(typeof opts.campaignLevelPushCost==='function'){const raw=opts.campaignLevelPushCost({ascensionCount:node.a,discardedAscensions:node.d,compressionLockedLevel:node.l,maxLevelEver:node.b,targetLevel:target,initial:node.initial});return {seconds:Math.max(0,finite(raw&&raw.seconds,raw)),targetLevel:target,synthetic:true}}const initial=node.initial,plan=compressionLevelPushPlan({ascensionCount:node.a,discardedAscensions:node.d,initialBestLevel:node.b,compressionLockedLevel:node.l,targetLevel:target,totalCore:initial?Math.max(0,finite(opts.totalCore,totalCoreForAscension(node.a))):totalCoreForAscension(node.a),heldIngots:initial?Math.max(0,finite(opts.heldIngots,legacyStartIngot(node.d))):legacyStartIngot(node.d),requiredIngots:initial?Math.max(1,finite(opts.nextRequirement,nextAscensionRequirement(node.a))):nextAscensionRequirement(node.a),terminalSalesPerSecond:opts.compressionTerminalSalesPerSecond,rarePercent:opts.compressionRarePercent,gemLevel:opts.compressionGemLevel});return plan};
+    const startKey=key(startDiscarded,startA,startLockedLevel,bestLevel);dist.set(startKey,0);heapPush(0,startDiscarded,startA,startLockedLevel,bestLevel,true);let goal=null;
+    while(heap.length){const node=pop(),nodeKey=key(node.d,node.a,node.l,node.b),known=dist.get(nodeKey);if(known==null||node.cost>known+1e-9)continue;visitedStates++;if(node.a>=goalAscension){goal=node;break}
+      const ev=edge(node);if(ev&&Number.isFinite(ev.seconds)){const nd=node.d,na=node.a+1,nl=node.l,nb=Math.max(node.b,ev.maxLevelReached),nk=key(nd,na,nl,nb),nc=node.cost+ev.seconds;if(nc<(dist.get(nk)??Infinity)-1e-9){dist.set(nk,nc);prev.set(nk,{from:nodeKey,action:{type:'ascend',fromAscension:node.a,toAscension:na,discardedAscensions:node.d,compressionLockedLevel:node.l,maxLevelEverBefore:node.b,maxLevelEverAfter:nb,mode:ev.mode,seconds:ev.seconds,policy:ev.policy}});heapPush(nc,nd,na,nl,nb,false)}}
+      if(allowLegacy&&node.a>=LEGACY_REQUIRED_ASCENSIONS){const nd=node.d+node.a,na=0,nl=node.b,nb=node.b,nk=key(nd,na,nl,nb),nc=node.cost;if(nc<(dist.get(nk)??Infinity)-1e-9){dist.set(nk,nc);prev.set(nk,{from:nodeKey,action:{type:'legacy',atAscension:node.a,discardedBefore:node.d,discardedAfter:nd,lockedBefore:node.l,lockedAfter:nl,bestLevel:node.b,seconds:0}});heapPush(nc,nd,na,nl,nb,false)}
+        for(const target of pushTargets(node)){const plan=pushPlan(node,target);if(!plan||!Number.isFinite(plan.seconds))continue;const pnd=node.d+node.a,pna=0,pnl=target,pnb=target,pnk=key(pnd,pna,pnl,pnb),pnc=node.cost+plan.seconds;if(pnc<(dist.get(pnk)??Infinity)-1e-9){dist.set(pnk,pnc);prev.set(pnk,{from:nodeKey,action:{type:'push_legacy',atAscension:node.a,discardedBefore:node.d,discardedAfter:pnd,lockedBefore:node.l,lockedAfter:target,bestLevelBefore:node.b,bestLevelAfter:target,targetLevel:target,seconds:plan.seconds,pushPlan:plan}});heapPush(pnc,pnd,pna,pnl,pnb,false)}}
+      }
+    }
+    if(!goal)return null;const actions=[];let cursor=key(goal.d,goal.a,goal.l,goal.b);while(cursor!==startKey){const p=prev.get(cursor);if(!p)break;actions.push(p.action);cursor=p.from}actions.reverse();const legacyActions=actions.filter(x=>x.type==='legacy'||x.type==='push_legacy'),pushActions=actions.filter(x=>x.type==='push_legacy'),firstAction=actions.length?actions[0].type:'complete';
+    const currentEdge=edgeCache.get('initial')||null,currentChoice=currentEdge&&currentEdge.choice||null,currentPolicy=currentEdge&&currentEdge.policy||null,nextLegacyAt=legacyActions.length?legacyActions[0].atAscension:null,modeCounts=actions.filter(x=>x.type==='ascend').reduce((acc,x)=>(acc[x.mode]=(acc[x.mode]||0)+1,acc),{}),legacySearchComplete=!!opts.campaignPushTargetsComplete;
+    return {totalSeconds:goal.cost,firstAction,actions,legacyActions,pushActions,nextLegacyAt,currentChoice,currentPolicy,visitedStates,edgeEvaluations,bestLevel,compressionLockedLevel:startLockedLevel,discardedAscensions:startDiscarded,finalDiscardedAscensions:goal.d,finalCompressionLockedLevel:goal.l,finalBestLevel:goal.b,startAscension:startA,goalAscension,allowLegacy,modeCounts,legacySearchComplete,legacyModeCoverage:'per-Ascension Compression OFF/ON comparison; OFF is skipped only when its physical lower bound cannot beat ON; Legacy transitions preserve D/L/B state',legacyBestLevelScope:legacySearchComplete?'caller-supplied exhaustive push target set':'default push search includes the required Lv10000 milestone; branches pruned by legacyCampaignLowerBound are exhaustive over every push level'};
   }
 
   function expectedUsefulExpPerTerminal(level,slowdown,normalRareLevel,ingotLevels){
@@ -432,8 +680,8 @@
 
   function dpsLog10(normalLevels,ingotLevels,coreLevels,totalEarned,dpsCalibration=1){
     const speedLog=normalEffectLog10(0,normalLevels[0]),powerLog=normalEffectLog10(1,normalLevels[1]),reducerLog=normalEffectLog10(2,normalLevels[2]),gravityLog=normalEffectLog10(4,normalLevels[4]),spikesLog=normalEffectLog10(5,normalLevels[5]);
-    const rpmLog=Math.max(0,speedLog-reducerLog),hitsLog=rpmLog-Math.log10(60)+spikesLog+.7*(gravityLog-Math.log10(9.81));
-    const damageBaseLog=powerLog+2.26*reducerLog+Math.log10(Math.max(1e-300,ingotEffect(2,ingotLevels[2])))+Math.log10(Math.max(1e-300,prestigePermanent(totalEarned)));
+    const rpmLog=Math.max(0,speedLog-reducerLog),hitsLog=rpmLog-Math.log10(60)+spikesLog+GRAVITY_HIT_EXPONENT*(gravityLog-Math.log10(9.81));
+    const damageBaseLog=powerLog+REDUCER_DAMAGE_EXPONENT*reducerLog+Math.log10(Math.max(1e-300,ingotEffect(2,ingotLevels[2])))+Math.log10(Math.max(1e-300,prestigePermanent(totalEarned)));
     return Math.log10(OUTER_DAMAGE_FACTOR*Math.max(1e-300,dpsCalibration))+hitsLog+coreEffect(2,coreLevels[2])*damageBaseLog;
   }
 
@@ -1037,22 +1285,29 @@
     const startIngot=legacyStartIngot(discarded),rows=[],currentAscension=Math.max(0,Math.floor(finite(input&&input.ascensionCount))),hasCurrentState=Number.isFinite(Number(input&&input.heldIngots))&&Array.isArray(input&&input.ingotLevels)&&input.ingotLevels.length===8;
     function freshState(a){return {...input,ascensionCount:a,totalCore:totalCoreForAscension(a),heldIngots:startIngot,totalIngotsEarned:0,prestigeMultiplier:1,prestigeCount:0,currentCoreLevels:[0,0,0,0,0],currentSlowdownLevel:0,normalAutoUnlocked:true,ingotLevels:Array(8).fill(0),maxTargetLevel:ascensionSearchMaxLevel(a,Array(8).fill(0)),nextRequirement:nextAscensionRequirement(a),discardedAscensions:discarded,maxLevelEver:bestLevel}}
     function stateAt(a){if(a!==currentAscension||!hasCurrentState)return freshState(a);return {...input,ascensionCount:a,totalCore:Math.max(0,finite(input.totalCore,totalCoreForAscension(a))),heldIngots:Math.max(0,finite(input.heldIngots)),totalIngotsEarned:Math.max(0,finite(input.totalIngotsEarned,0)),prestigeCount:Math.max(0,Math.floor(finite(input.prestigeCount))),currentCoreLevels:Array.isArray(input.currentCoreLevels)&&input.currentCoreLevels.length===5?input.currentCoreLevels.slice():[0,0,0,0,0],currentSlowdownLevel:Math.max(0,Math.floor(finite(input.currentSlowdownLevel))),normalAutoUnlocked:true,ingotLevels:input.ingotLevels.slice(),maxTargetLevel:Math.max(100,Math.floor(finite(input.maxTargetLevel,ascensionSearchMaxLevel(a,input.ingotLevels)))),nextRequirement:nextAscensionRequirement(a),discardedAscensions:discarded,maxLevelEver:bestLevel}}
-    const hardness=a=>Math.log10(Math.max(1,nextAscensionRequirement(a)))-a*Math.log10(3),futureMinHardness=from=>{let min=Infinity;for(let a=Math.max(0,from);a<ASCENSION_MAX_COUNT;a++)min=Math.min(min,hardness(a));return min};
+    const hardness=a=>Math.log10(Math.max(1,nextAscensionRequirement(a)))-a*Math.log10(3);
     const evaluate=a=>{const state=stateAt(a),off=optimizeCompressionModeAtAscension(state,measurements,false,roadmapSteps),on=optimizeCompressionModeAtAscension(state,measurements,true,roadmapSteps),preferred=on.eta<off.eta-1e-9?'on':'off',row={ascension:a,requiredIngots:state.nextRequirement,hardness:hardness(a),offEta:off.eta,onEta:on.eta,preferred,speedup:preferred==='on'&&on.eta>0?off.eta/on.eta:preferred==='off'&&off.eta>0?on.eta/off.eta:1,offPlan:off.plan,onPlan:on.plan,offIngotLevels:off.ingotLevels,onIngotLevels:on.ingotLevels};rows.push(row);return row};
-    let certifiedThrough=null,certificateReason='';
-    for(let a=0;a<ASCENSION_MAX_COUNT&&a<=probeLimit;a++){
-      evaluate(a);
-      if(a>=4){const tail=rows.slice(-5),firstOn=rows.findIndex(x=>x.preferred==='on');if(firstOn>=0&&rows.slice(firstOn).every(x=>x.preferred==='on')&&tail.every(x=>x.preferred==='on')&&futureMinHardness(a+1)>=hardness(a)-1e-12){certifiedThrough=ASCENSION_MAX_COUNT-1;certificateReason=`A${a}まで5連続でCompression ONが優位で、以後のrequired▲/3^A下限も悪化しないためA499までON優位を認定。`;break}}
-    }
+    // This helper is retained for the pre-unlock preview only. Never extrapolate a
+    // handful of consecutive wins to A499: the full post-unlock campaign evaluates
+    // every future Ascension (or prunes a mode only with a real lower-bound proof).
+    const certifiedThrough=null,certificateReason='';
+    for(let a=0;a<ASCENSION_MAX_COUNT&&a<=probeLimit;a++)evaluate(a);
     if(currentAscension<ASCENSION_MAX_COUNT&&!rows.some(x=>x.ascension===currentAscension))evaluate(currentAscension);rows.sort((a,b)=>a.ascension-b.ascension);
     const contiguous=[];for(let a=0;;a++){const row=rows.find(x=>x.ascension===a);if(!row)break;contiguous.push(row)}const verifiedThrough=contiguous.length?contiguous[contiguous.length-1].ascension:null;
-    let switchAscension=null;if(certifiedThrough===ASCENSION_MAX_COUNT-1){for(let i=0;i<contiguous.length;i++)if(contiguous[i].preferred==='on'&&contiguous.slice(i).every(x=>x.preferred==='on')){switchAscension=contiguous[i].ascension;break}}
+    let switchAscension=null;for(let i=0;i<contiguous.length;i++)if(contiguous[i].preferred==='on'&&contiguous.slice(i).every(x=>x.preferred==='on')){switchAscension=contiguous[i].ascension;break}
     const currentRow=rows.find(x=>x.ascension===currentAscension),modeNow=currentRow?currentRow.preferred:(switchAscension!==null&&currentAscension>=switchAscension?'on':'off'),action=modeNow==='on'?'compression_on':switchAscension!==null?'keep_off_until_switch':'keep_off';
     return {unlocked:true,discardedAscensions:discarded,bestLevel,compressionE:compressionE(bestLevel,discarded),switchAscension,modeNow,action,rows,verifiedThrough,certifiedThrough,certificateReason,roadmapSteps,startIngot};
   }
 
   function optimizeSingularity(input,measurements){
-    const currentAscension=Math.max(0,Math.floor(finite(input&&input.ascensionCount))),discarded=Math.max(0,Math.floor(finite(input&&input.discardedAscensions))),bestLevel=Math.max(0,Math.floor(finite(input&&input.maxLevelEver))),terminalSalesPerSecond=Math.max(1e-12,finite(input&&input.compressionTerminalSalesPerSecond,15.75)),rarePercent=clamp(finite(input&&input.compressionRarePercent,100),0,100),gemLevel=Math.max(0,Math.min(10,Math.floor(finite(input&&input.compressionGemLevel,10)))),totalCrushLog=finite(input&&input.totalCrushLog,0),prestigeGateScale=Math.max(.01,finite(input&&input.prestigeGateScale,1)),postOpts={terminalSalesPerSecond,rarePercent,gemLevel,totalCrushLog,bestLevel,prestigeGateScale};
+    const currentAscension=Math.max(0,Math.floor(finite(input&&input.ascensionCount))),discarded=Math.max(0,Math.floor(finite(input&&input.discardedAscensions))),bestLevel=Math.max(0,Math.floor(finite(input&&input.maxLevelEver))),lockedLevel=Math.max(0,Math.floor(finite(input&&input.compressionLockedLevel,bestLevel))),terminalSalesPerSecond=Math.max(1e-12,finite(input&&input.compressionTerminalSalesPerSecond,15.75)),rarePercent=clamp(finite(input&&input.compressionRarePercent,100),0,100),gemLevel=Math.max(0,Math.min(10,Math.floor(finite(input&&input.compressionGemLevel,10)))),totalVolumeCrushLog=Number.isFinite(Number(input&&input.totalVolumeCrushLog))?Number(input.totalVolumeCrushLog):null,prestigeGateScale=Math.max(.01,finite(input&&input.prestigeGateScale,1)),postOpts={terminalSalesPerSecond,rarePercent,gemLevel,totalVolumeCrushLog,bestLevel,compressionLockedLevel:lockedLevel,prestigeGateScale};
+    if(discarded>=COMPRESSION_UNLOCK_DISCARDED){
+      const campaign=optimizeClosedLoopA500Campaign({...input,compressionEnabled:true,allowLegacy:true},measurements||[]);if(!campaign)return {plan:null,reason:'no_closed_loop_campaign'};
+      const currentPolicy=campaign.currentPolicy,desiredMode=currentPolicy&&currentPolicy.mode||'on',readyIngots=Math.max(0,finite(input&&input.heldIngots))>=Math.max(1,finite(input&&input.nextRequirement,nextAscensionRequirement(currentAscension))),readyPrestige=Math.max(0,Math.floor(finite(input&&input.prestigeCount)))>=25,firstLegacy=campaign.legacyActions[0]||null;
+      let nextAction;if(campaign.firstAction==='complete')nextAction='complete';else if(campaign.firstAction==='legacy')nextAction='legacy_now';else if(campaign.firstAction==='push_legacy')nextAction='push_then_legacy';else if(readyIngots&&readyPrestige)nextAction='ascend_now';else if(desiredMode==='off')nextAction=input&&input.compressionEnabled?'disable_compression':'compression_off_progress';else if(!(input&&input.compressionEnabled))nextAction='enable_compression_now';else if(!readyPrestige)nextAction='closed_loop_gate';else nextAction='closed_loop_harvest';
+      const afterA500LegacyDiscarded=campaign.finalDiscardedAscensions+ASCENSION_MAX_COUNT,afterA500LockedLevel=Math.max(bestLevel,Math.floor(finite(campaign.finalBestLevel,bestLevel))),volumePlan=observableUniverseCrushPlan(totalVolumeCrushLog,compressionE(afterA500LockedLevel,afterA500LegacyDiscarded),terminalSalesPerSecond);
+      return {plan:{closedLoop:true,nextAction,currentBestLevel:bestLevel,currentLockedLevel:lockedLevel,unlockDiscarded:discarded,campaign,currentPolicy,nextLegacyAt:firstLegacy&&firstLegacy.atAscension,totalOverlapSeconds:campaign.totalSeconds,totalSequentialSeconds:campaign.totalSeconds,finalCycleDiscarded:campaign.finalDiscardedAscensions,extraCompressionLegacyCycles:campaign.legacyActions.map(x=>x.atAscension),afterA500LegacyDiscarded,levelTarget:Math.max(10000,bestLevel),observableBestLevel:null,observableReadyAtCurrentBest:volumePlan.ready,volumePlan,terminalSalesPerSecond,theoreticalTerminalSalesPerSecond:THEORETICAL_TERMINAL_SALES_RATE},currentPlan:null,freshStatesEvaluated:campaign.edgeEvaluations,assumptions:{closedLoop:true,compressionEtaMeaning:'現在状態から各AscensionのCompression OFF/ONを比較。LegacyはA0へ完全resetするため、物理処理上限と25 Prestige必須条件から作るadmissible lower boundでのみ枝刈りする。best-Level pushはその下界では0秒として扱うため、下界枝刈り時は任意のpush先まで覆う。5連続勝利によるA499外挿は使用しない。'}};
+    }
     let preCompressionSeconds=0,legacyTargets=[],unlockDiscarded=discarded,currentPlan=null,freshStatesEvaluated=0;
     if(discarded<COMPRESSION_UNLOCK_DISCARDED){
       const currentInput={...input,objective:'ascensionEta',ascensionCount:currentAscension,totalCore:Math.max(0,finite(input&&input.totalCore,totalCoreForAscension(currentAscension))),nextRequirement:finite(input&&input.nextRequirement,nextAscensionRequirement(currentAscension)),measurements:measurements||[]},currentResult=optimizeAscension(currentInput,measurements||[]);currentPlan=currentResult&&currentResult.plan;
@@ -1065,7 +1320,7 @@
     const switchInput={...input,ascensionCount:discarded>=COMPRESSION_UNLOCK_DISCARDED?currentAscension:0,discardedAscensions:unlockDiscarded,maxLevelEver:bestLevel},compressionSwitch=optimizeCompressionSwitchPlan(switchInput,measurements||[],{probeLimit:8,roadmapSteps:32});
     const compression=optimizeCompressionPreparation({...postOpts,discardedAscensions:unlockDiscarded}),theoretical=optimizeCompressionPreparation({...postOpts,discardedAscensions:unlockDiscarded,terminalSalesPerSecond:THEORETICAL_TERMINAL_SALES_RATE}),primaryFinalDiscarded=compression.overlap.finalCycleDiscarded,totalOverlapSeconds=preCompressionSeconds+compression.completionOverlapSeconds,totalSequentialSeconds=preCompressionSeconds+compression.completionSequentialSeconds,theoreticalSeconds=preCompressionSeconds+theoretical.completionOverlapSeconds,nextLegacyAt=legacyTargets.length?legacyTargets[0]:null;
     let nextAction;if(discarded<COMPRESSION_UNLOCK_DISCARDED)nextAction=nextLegacyAt!==null&&currentAscension>=nextLegacyAt?'legacy_now':'continue_to_legacy_target';else if(compressionSwitch.switchAscension===null)nextAction=input&&input.compressionEnabled?'disable_compression':'continue_without_compression';else if(currentAscension<compressionSwitch.switchAscension)nextAction=input&&input.compressionEnabled?'disable_compression_until_switch':'continue_without_compression_to_switch';else nextAction=input&&input.compressionEnabled?'compression_on_to_A500':'enable_compression_now';
-    return {plan:{nextAction,nextLegacyAt,legacyTargets,preCompressionSeconds,unlockDiscarded,compressionSwitch,compressionSwitchAscension:compressionSwitch.switchAscension,compressionModeNow:compressionSwitch.modeNow,compression,totalOverlapSeconds,totalSequentialSeconds,theoreticalSeconds,terminalSalesPerSecond,theoreticalTerminalSalesPerSecond:THEORETICAL_TERMINAL_SALES_RATE,finalCycleDiscarded:primaryFinalDiscarded,extraCompressionLegacyCycles:compression.overlap.extraLegacyCycles,afterA500LegacyDiscarded:compression.afterA500LegacyDiscarded,observableBestLevel:compression.observableBestLevel,levelTarget:compression.levelTarget,currentBestLevel:bestLevel,observableReadyAtCurrentBest:compression.observableReadyAtCurrentBest},currentPlan,freshStatesEvaluated,assumptions:{preCompressionFutureIngotRoadmap:false,compressionRarePercent:rarePercent,compressionGemLevel:gemLevel,prestigeGateScale,compressionEtaMeaning:'A0からのCompression ON/OFF切替はr80物理モデル+Ingot再投資で探索。後半の総ETAレンジはterminal-rate外側モデルを併記。'}};
+    return {plan:{nextAction,nextLegacyAt,legacyTargets,preCompressionSeconds,unlockDiscarded,compressionSwitch,compressionSwitchAscension:compressionSwitch.switchAscension,compressionModeNow:compressionSwitch.modeNow,compression,totalOverlapSeconds,totalSequentialSeconds,theoreticalSeconds,terminalSalesPerSecond,theoreticalTerminalSalesPerSecond:THEORETICAL_TERMINAL_SALES_RATE,finalCycleDiscarded:primaryFinalDiscarded,extraCompressionLegacyCycles:compression.overlap.extraLegacyCycles,afterA500LegacyDiscarded:compression.afterA500LegacyDiscarded,observableBestLevel:null,levelTarget:compression.levelTarget,currentBestLevel:bestLevel,observableReadyAtCurrentBest:compression.observableReadyAtCurrentBest,volumePlan:compression.volumePlan},currentPlan,freshStatesEvaluated,assumptions:{preCompressionFutureIngotRoadmap:false,compressionRarePercent:rarePercent,compressionGemLevel:gemLevel,prestigeGateScale,compressionEtaMeaning:'A0からのCompression ON/OFF切替はr82物理モデル+Ingot再投資で探索。r82 statVolCは過去破砕時点のE込み累積値として扱い、現在Eを履歴へ後付けしない。'}};
   }
 
   function etaContinuous(req,held,rate){return Math.max(0,req-held)/Math.max(1e-12,rate)}
@@ -1514,8 +1769,8 @@
   }
 
   return {
-    MODEL_REVISION,BASE_SPAWN_INTERVAL,MIN_SPAWN_RATE,MIN_SPAWN_INTERVAL,TERMINAL_ORES_PER_TOP,MAX_TOP_SPAWN_RATE,NORMAL_AUTO_UNLOCK_COST,OUTER_DAMAGE_FACTOR,ORE_MAX_CRUSH_SECONDS,MAX_ZONE_ORES,ORE_TIER_HP_MULTIPLIER,ORICHALCUM_HP_MULTIPLIER,LEGACY_REQUIRED_ASCENSIONS,COMPRESSION_UNLOCK_DISCARDED,LEGACY_START_INGOT_CAP,ASCENSION_MAX_COUNT,COMPRESSION_INGOT_DENOMINATOR,COMPRESSION_VOLUME_TARGET_LOG,ORE_VOLUME,BOMB_RARITY_CHANCE,BOMB_DANGER_MULTIPLIER,INSTANCE_BONUS_PER_PLAYER,INSTANCE_BONUS_MAX_MULTIPLIER,BOOST_MULTIPLIER,THEORETICAL_TERMINAL_SALES_RATE,EARLY_ORE_VALUE,EARLY_ORE_HP,NORMAL,INGOT,CORE_NAMES,CORE_FEED,SLOWDOWN,ASCENSION_INGOT_REQ,DEFAULT_INGOT_LEVELS,DEFAULT_CORE,A18_VIDEO_CORE,A18_VIDEO_INGOT,DEFAULT_MEASUREMENTS,
-    totalCoreForAscension,slowdownLevel,nextAscensionRequirement,coreCost,maxCoreLevel,coreEffect,coreBundleCost,coreReallocationPlan,ascensionInteractionPlan,slowdownReallocationPlan,ingotEffect,ingotNextCost,ingotCumulativeCost,ingotBundleCost,inferTotalIngotsEarned,prestigeTotalIngotsEarnedFromMultiplier,legacyStartIngot,afterAscensionState,compressionUnlocked,compressionE,compressionRarityState,compressionRarityValueMultiplier,compressionExpectedIngotPerOre,compressionDirectIngotPlan,compressionLevelPushPlan,compressionVolumeLog,observableUniverseBestLevel,prestigeGateBaselineSeconds,compressionAscensionEstimate,compressionCycleEstimate,optimizeCompressionPreparation,optimizeLegacyPartitions,optimizeCompressionSwitchPlan,normalEffect,requiredExpLog10,requiredExp,baseOreValueLog10,baseOreValue,baseOreHpLog10,baseOreHp,expectedTerminalPerTop,prestigeBase,prestigeGain,prestigePermanent,
-    instanceBonusMultiplier,normalNextCostLog10,rarityState,topSpawnRate,expectedUsefulExpPerTerminal,directExpPaceAtLevel,calculateExpPaceBoundary,expectedRarityValueMultiplier,rankingIncomeLog10,normalBundleCostLog10,dpsLog10,softCapHpLog,targetOreStats,requiredPreparedDpsLog10,calculateRankingTarget,simulateCurve,deriveDpsCalibration,fitCalibration,exactTimingMeasurements,timingResolver,mergePrestigeSchedule,prestigeScheduleFunding,planNormalAutoBootstrap,optimizeNormalAutoBootstrap,paretoCoreCandidates,slowdownCandidates,optimizeFixedCore,evaluateAutoPrestigeSetting,evaluateAutoPrestigeScheduleSetting,fixedCoreIngotSearchLevels,fixedCoreIngotBandEtaLowerBound,manualCoreEtaLowerBound,optimizeAscension,optimizeSingularity,optimizeIngotUpgrades,completeAscensionState,ascensionSearchMaxLevel,optimizeTargetLevel,optimizeRanking,optimizeRankingIngotUpgrades,CORE_STRATEGY_PROFILES,coreStrategyWorkload,assessCoreStrategyPair,formatNumber,formatSlowdownMultiplier,formatLog10,parseNumber,quickStartAdvice
+    MODEL_REVISION,BASE_SPAWN_INTERVAL,MIN_SPAWN_RATE,MIN_SPAWN_INTERVAL,TERMINAL_ORES_PER_TOP,MAX_TOP_SPAWN_RATE,AUTO_BUY_INTERVAL,R82_DEFAULT_DIRECT_FLOW_CALIBRATION,PRE_R82_A29_DIRECT_FLOW_CALIBRATION,NORMAL_AUTO_UNLOCK_COST,OUTER_DAMAGE_FACTOR,ORE_MAX_CRUSH_SECONDS,MAX_ZONE_ORES,ORE_TIER_HP_MULTIPLIER,ORICHALCUM_HP_MULTIPLIER,LEGACY_REQUIRED_ASCENSIONS,COMPRESSION_UNLOCK_DISCARDED,LEGACY_START_INGOT_CAP,ASCENSION_MAX_COUNT,COMPRESSION_INGOT_DENOMINATOR,COMPRESSION_VOLUME_TARGET_LOG,ORE_VOLUME,BOMB_RARITY_CHANCE,BOMB_DANGER_MULTIPLIER,INSTANCE_BONUS_PER_PLAYER,INSTANCE_BONUS_MAX_MULTIPLIER,BOOST_MULTIPLIER,THEORETICAL_TERMINAL_SALES_RATE,EARLY_ORE_VALUE,EARLY_ORE_HP,NORMAL,INGOT,CORE_NAMES,CORE_FEED,SLOWDOWN,ASCENSION_INGOT_REQ,DEFAULT_INGOT_LEVELS,DEFAULT_CORE,A18_VIDEO_CORE,A18_VIDEO_INGOT,DEFAULT_MEASUREMENTS,
+    totalCoreForAscension,slowdownLevel,nextAscensionRequirement,coreCost,maxCoreLevel,coreEffect,coreBundleCost,coreReallocationPlan,ascensionInteractionPlan,slowdownReallocationPlan,ingotEffect,ingotNextCost,ingotCumulativeCost,ingotBundleCost,inferTotalIngotsEarned,prestigeTotalIngotsEarnedFromMultiplier,legacyStartIngot,afterAscensionState,afterLegacyState,compressionUnlocked,compressionE,compressionRarityState,compressionRarityValueMultiplier,compressionExpectedIngotPerOre,compressionDirectIngotPlan,compressionLevelPushPlan,compressionVolumeLog,observableUniverseReady,observableUniverseCrushPlan,prestigeGateBaselineSeconds,compressionAscensionEstimate,compressionCycleEstimate,optimizeCompressionPreparation,optimizeLegacyPartitions,optimizeCompressionSwitchPlan,normalEffect,requiredExpLog10,requiredExp,baseOreValueLog10,baseOreValue,baseOreHpLog10,baseOreHp,expectedTerminalPerTop,prestigeBase,prestigeGain,prestigePermanent,
+    instanceBonusMultiplier,normalNextCostLog10,rarityState,topSpawnRate,maxSupplyCappedSlowdown,effectiveAutoPurchasesPerSecond,minimumCoreFeedLevelForSlowdown,compressionFarmPriorityCore,compressionFarmCoreForAscension,compressionFarmCoreTable,compressionFarmSnapshot,simulateCompressionAutoHarvest,optimizeCompressionAutoHarvest,simulateCompressionAutoWindow,estimateClosedLoopPrestigeGate,optimizeClosedLoopAscensionPolicy,compressionOffEtaLowerBound,optimizeClosedLoopAscensionMode,closedLoopFreshPrestigeFloor,legacyCampaignLowerBound,optimizeClosedLoopA500Campaign,expectedUsefulExpPerTerminal,directExpPaceAtLevel,calculateExpPaceBoundary,expectedRarityValueMultiplier,rankingIncomeLog10,normalBundleCostLog10,dpsLog10,softCapHpLog,targetOreStats,requiredPreparedDpsLog10,calculateRankingTarget,simulateCurve,deriveDpsCalibration,fitCalibration,exactTimingMeasurements,timingResolver,mergePrestigeSchedule,prestigeScheduleFunding,planNormalAutoBootstrap,optimizeNormalAutoBootstrap,paretoCoreCandidates,slowdownCandidates,optimizeFixedCore,evaluateAutoPrestigeSetting,evaluateAutoPrestigeScheduleSetting,fixedCoreIngotSearchLevels,fixedCoreIngotBandEtaLowerBound,manualCoreEtaLowerBound,optimizeAscension,optimizeSingularity,optimizeIngotUpgrades,completeAscensionState,ascensionSearchMaxLevel,optimizeTargetLevel,optimizeRanking,optimizeRankingIngotUpgrades,CORE_STRATEGY_PROFILES,coreStrategyWorkload,assessCoreStrategyPair,formatNumber,formatSlowdownMultiplier,formatLog10,parseNumber,quickStartAdvice
   };
 });

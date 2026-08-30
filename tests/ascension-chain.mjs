@@ -18,7 +18,7 @@ assert.equal(completion.nextState.totalCore,M.totalCoreForAscension(8));
 assert.equal(completion.nextState.heldIngots,0);
 assert.equal(completion.nextState.totalIngotsEarned,0);
 assert.equal(completion.nextState.prestigeCount,0);
-assert.equal(completion.nextState.normalAutoUnlocked,false);
+assert.equal(completion.nextState.normalAutoUnlocked,true,'optimizer product flow keeps normal Upgrade Auto permanently unlocked across Ascension sync');
 assert.deepEqual(completion.nextState.ingotLevels,Array(8).fill(0));
 
 assert.equal(M.ascensionSearchMaxLevel(18,Array(8).fill(0)),5000);

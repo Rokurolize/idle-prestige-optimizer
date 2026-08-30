@@ -39,7 +39,7 @@ async function run(kind,maxTargetLevel){
 try{
   const baselineRun=await run('baseline',5750),currentRun=await run('current',10000),speedup=baselineRun.ms/currentRun.ms;
   if(baselineRun.targetLevel!==5651)throw new Error(`baseline fixture drifted: ${JSON.stringify(baselineRun)}`);
-  if(currentRun.targetLevel!==6115||JSON.stringify(currentRun.core)!==JSON.stringify([27,33,28,9,18]))throw new Error(`current optimum drifted: ${JSON.stringify(currentRun)}`);
+  if(currentRun.targetLevel!==5355||JSON.stringify(currentRun.core)!==JSON.stringify([27,33,27,9,19]))throw new Error(`current r82 optimum drifted: ${JSON.stringify(currentRun)}`);
   if(speedup<10)throw new Error(`10x completion condition failed: ${speedup.toFixed(2)}x (${baselineRun.ms.toFixed(1)} ms -> ${currentRun.ms.toFixed(1)} ms)`);
   console.log(JSON.stringify({baselineCommit:BASELINE_COMMIT,baseline:baselineRun,current:currentRun,speedup},null,2));
 }finally{
