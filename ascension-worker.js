@@ -100,7 +100,8 @@ self.onmessage=async function(event){
       const result=model.optimizeRanking(msg.input||{},msg.measurements||[]);self.postMessage({type:'result',id,goal,result,modelRevision});const ingotPlan=model.optimizeRankingIngotUpgrades(msg.input||{},result,msg.measurements||[],Number(msg.maxIngotSteps)||24);self.postMessage({type:'ingot',id,goal,ingotPlan,modelRevision});return;
     }
     if(goal==='singularity'){
-      const result=model.optimizeSingularity(msg.input||{},msg.measurements||[]);self.postMessage({type:'result',id,goal,result,modelRevision});return;
+      const input=msg.input||{},measurements=msg.measurements||[],preview=model.optimizeSingularity({...input,campaignAllowLegacy:false},measurements);self.postMessage({type:'result',id,goal,result:preview,modelRevision,partial:true,legacyPending:true});
+      const result=model.optimizeSingularity({...input,campaignAllowLegacy:true},measurements);self.postMessage({type:'result',id,goal,result,modelRevision,legacyPending:false});return;
     }
     if(msg.input&&msg.input.disableParallel){
       const result=model.optimizeAscension(msg.input||{},msg.measurements||[]);self.postMessage({type:'result',id,goal,result,modelRevision});const ingotPlan=model.optimizeIngotUpgrades(msg.input||{},result,msg.measurements||[],Number(msg.maxIngotSteps)||192);self.postMessage({type:'ingot',id,goal,ingotPlan,modelRevision});return;

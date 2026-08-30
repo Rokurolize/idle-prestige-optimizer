@@ -101,6 +101,11 @@ assert.equal(pushWinning.pushActions.length,1);
 assert.equal(pushWinning.finalCompressionLockedLevel,200);
 assert.equal(pushWinning.totalSeconds,22);
 
+const highBestDefaultPush=M.optimizeClosedLoopA500Campaign({ascensionCount:10,discardedAscensions:50,maxLevelEver:18066,compressionLockedLevel:18066,campaignGoalAscension:20,campaignAscensionLowerBoundSeconds:1,campaignAscensionEdge:s=>({seconds:s.compressionLockedLevel>=19000?1:1000,mode:'on'}),campaignLevelPushCost:({targetLevel})=>targetLevel===19000?2:Infinity},M.DEFAULT_MEASUREMENTS);
+assert.equal(highBestDefaultPush.firstAction,'push_legacy','default push search must continue above a live best greater than Lv10000');
+assert.equal(highBestDefaultPush.pushActions[0].targetLevel,19000);
+assert.equal(highBestDefaultPush.finalCompressionLockedLevel,19000);
+
 const pushHarmful=M.optimizeClosedLoopA500Campaign({ascensionCount:10,discardedAscensions:50,maxLevelEver:100,compressionLockedLevel:100,campaignGoalAscension:20,campaignAscensionLowerBoundSeconds:1,campaignAscensionEdge:()=>({seconds:1,mode:'on'}),campaignPushTargets:[200],campaignPushTargetsComplete:true,campaignLevelPushCost:()=>1000},M.DEFAULT_MEASUREMENTS);
 assert.equal(pushHarmful.firstAction,'ascend');
 assert.equal(pushHarmful.pushActions.length,0);
